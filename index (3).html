@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dokumenti Pogon BK</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#F5F4F0;--surface:#FFF;--surface2:#F0EFE9;--border:#E2E0D8;--border2:#CCC9BC;
+    --text:#1A1916;--text2:#5A5850;--text3:#9B9888;
+    --blue:#185FA5;--blue-l:#E8F1FA;--blue-d:#0C3E70;
+    --green:#3B6D11;--green-l:#EAF3DE;
+    --amber:#BA7517;--amber-l:#FAEEDA;
+    --red:#C73B3A;--red-l:#FAEAEA;
+    --purple:#534AB7;--purple-l:#EEEDFE;
+    --pink:#993556;--pink-l:#FBEAF0;
+    --teal:#1A7A6E;--teal-l:#DDF2EF;
+    --r:10px;--rs:6px;
+    --sh:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+    --sh-lg:0 12px 40px rgba(0,0,0,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+  /* TOPBAR */
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:var(--sh)}
+  .logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.02em}
+  .logo-icon{width:30px;height:30px;background:var(--blue);border-radius:7px;display:flex;align-items:center;justify-content:center}
+  .logo-badge{font-size:10px;padding:2px 7px;background:var(--green-l);color:var(--green);border-radius:20px;font-weight:600}
+  .topbar-right{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+  .conn-status{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'DM Mono',monospace;padding:4px 9px;border-radius:20px;cursor:pointer;transition:all .15s}
+  .conn-status.connected{background:var(--green-l);color:var(--green)}
+  .conn-status.disconnected{background:var(--amber-l);color:var(--amber)}
+  .conn-status.error{background:var(--red-l);color:var(--red)}
+  .conn-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  /* LAYOUT */
+  .app{max-width:1160px;margin:0 auto;padding:16px}
+
+  /* STATS */
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;cursor:pointer;transition:all .15s;box-shadow:var(--sh)}
+  .stat-card:hover{border-color:var(--blue);transform:translateY(-1px)}
+  .stat-card.active{background:var(--blue-l);border-color:var(--blue)}
+  .stat-label{font-size:10px;color:var(--text3);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .stat-num{font-size:24px;font-weight:600;color:var(--text);letter-spacing:-.03em;line-height:1}
+  .stat-sub{font-size:11px;color:var(--text3);margin-top:3px}
+
+  /* GRID */
+  .main-grid{display:grid;grid-template-columns:230px 1fr;gap:11px}
+
+  /* SIDEBAR */
+  .sidebar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;height:fit-content;box-shadow:var(--sh);position:sticky;top:70px}
+  .sidebar-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+  .cat-item{display:flex;align-items:center;justify-content:space-between;padding:7px 8px;border-radius:var(--rs);cursor:pointer;margin-bottom:1px;font-size:13px;color:var(--text2);transition:background .1s;user-select:none}
+  .cat-item:hover{background:var(--surface2)}
+  .cat-item.active{background:var(--blue-l);color:var(--blue);font-weight:500}
+  .cat-item-left{display:flex;align-items:center;gap:7px;flex:1;min-width:0}
+  .cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .cat-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cat-badge{font-size:11px;padding:1px 7px;border-radius:20px;background:var(--surface2);color:var(--text3);font-weight:600;font-family:'DM Mono',monospace;flex-shrink:0}
+  .cat-item.active .cat-badge{background:#B5D4F4;color:var(--blue-d)}
+  .cat-actions{display:none;gap:2px;flex-shrink:0}
+  .cat-item:hover .cat-actions{display:flex}
+  .cat-act-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;border-radius:3px}
+  .cat-act-btn:hover{color:var(--text);background:var(--border)}
+  .cat-act-btn.del:hover{color:var(--red);background:var(--red-l)}
+  .add-cat-btn{width:100%;padding:8px 10px;background:none;border:1px dashed var(--border2);border-radius:var(--rs);font-size:12px;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;font-family:'DM Sans',sans-serif;transition:all .15s}
+  .add-cat-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+  .new-cat-form{display:none;margin-top:8px;padding:10px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border)}
+  .new-cat-form.visible{display:block}
+  .new-cat-input{width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);margin-bottom:7px}
+  .new-cat-input:focus{outline:none;border-color:var(--blue)}
+  .new-cat-colors{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+  .color-pick{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .1s;flex-shrink:0}
+  .color-pick.selected{border-color:var(--text);transform:scale(1.15)}
+  .new-cat-emoji{width:100%;padding:5px 9px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);margin-bottom:8px}
+  .new-cat-emoji:focus{outline:none;border-color:var(--blue)}
+  .new-cat-btns{display:flex;gap:6px}
+  .btn-xs{padding:5px 10px;border-radius:var(--rs);font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:1px solid var(--border)}
+  .btn-xs.primary{background:var(--blue);color:white;border-color:var(--blue)}
+  .btn-xs.cancel{background:var(--surface);color:var(--text2)}
+
+  /* QUICK ACTION BTNS */
+  .sidebar-btn{width:100%;padding:9px 11px;background:none;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:7px;margin-bottom:5px;font-family:'DM Sans',sans-serif;transition:all .15s;text-align:left}
+  .sidebar-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+  .sidebar-btn.primary{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:white;border-color:var(--blue);box-shadow:0 2px 8px rgba(24,95,165,.25)}
+  .sidebar-btn.primary:hover{opacity:.9}
+  .sync-row{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace}
+  .sync-dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0}
+  .sync-dot.syncing{animation:pulse 1s ease-in-out infinite;background:var(--amber)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* CONTENT */
+  .content-area{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px;box-shadow:var(--sh)}
+
+  /* ALERTS */
+  .alert-bar{display:flex;align-items:flex-start;gap:9px;padding:10px 13px;border-radius:var(--rs);font-size:12px;margin-bottom:11px;border:1px solid}
+  .alert-bar.warn{background:var(--amber-l);border-color:#FAC775;color:#633806}
+  .alert-bar.info{background:var(--blue-l);border-color:#91C0EF;color:var(--blue-d)}
+
+  /* UPLOAD PANEL */
+  .upload-panel{display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden;box-shadow:var(--sh)}
+  .upload-panel.visible{display:block}
+  .upload-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
+  .upload-panel-title{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:7px}
+  .upload-panel-close{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;padding:2px 6px;border-radius:4px}
+  .upload-panel-close:hover{background:var(--border);color:var(--text)}
+  .upload-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+  .upload-method{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px 14px;cursor:pointer;border-right:1px solid var(--border);transition:background .15s;text-align:center;position:relative}
+  .upload-method:last-child{border-right:none}
+  .upload-method:hover{background:var(--blue-l)}
+  .upload-method-icon{font-size:30px;margin-bottom:9px;line-height:1}
+  .upload-method-label{font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px}
+  .upload-method-sub{font-size:10px;color:var(--text3);line-height:1.4}
+  .upload-method .method-badge{position:absolute;top:8px;right:8px;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700}
+  .method-badge.auto{background:var(--green-l);color:var(--green)}
+  .method-badge.drive{background:#E8F4EA;color:#1A7A3C}
+  /* drag-over state on upload panel */
+  .upload-panel.dragover{border-color:var(--blue);background:var(--blue-l)}
+  .upload-drop-hint{display:none;padding:30px;text-align:center;color:var(--blue);font-size:13px;font-weight:500}
+  .upload-panel.dragover .upload-methods{display:none}
+  .upload-panel.dragover .upload-drop-hint{display:block}
+  /* Drive picker button style */
+  .drive-picker-btn{width:100%;height:100%;position:absolute;inset:0;opacity:0;cursor:pointer}
+
+  /* ── FOLDER / BATCH ──────────────────────────────────────────── */
+  .upload-methods{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+
+  /* BATCH PROGRESS PANEL */
+  .batch-panel{display:none;background:var(--surface);border:1.5px solid var(--blue);border-radius:var(--r);margin-bottom:14px;overflow:hidden;box-shadow:var(--sh)}
+  .batch-panel.visible{display:block}
+  .batch-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;background:var(--blue-l);border-bottom:1px solid #B5D4F4}
+  .batch-hdr-title{font-size:12px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:7px}
+  .batch-overall{padding:10px 15px;border-bottom:1px solid var(--border)}
+  .batch-overall-bar{height:6px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px}
+  .batch-overall-fill{height:100%;background:var(--blue);border-radius:4px;transition:width .3s}
+  .batch-list{max-height:220px;overflow-y:auto;padding:6px 0}
+  .batch-item{display:flex;align-items:center;gap:9px;padding:6px 15px;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border)}
+  .batch-item:last-child{border-bottom:none}
+  .batch-item-icon{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+  .bi-wait{background:var(--surface2);color:var(--text3)}
+  .bi-proc{background:var(--blue-l);color:var(--blue)}
+  .bi-done{background:var(--green-l);color:var(--green)}
+  .bi-err{background:var(--red-l);color:var(--red)}
+  .batch-item-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .batch-item-status{font-size:10px;color:var(--text3);white-space:nowrap;font-family:'DM Mono',monospace}
+  .batch-footer{padding:10px 15px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);background:var(--surface2)}
+  .batch-summary{font-size:12px;color:var(--text2)}
+
+  /* ── ORGANIZE MODAL ──────────────────────────────────────────── */
+  .org-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:400;align-items:flex-start;justify-content:center;backdrop-filter:blur(2px);padding:20px;overflow-y:auto}
+  .org-overlay.open{display:flex}
+  .org-modal{background:var(--surface);border-radius:14px;width:820px;max-width:98vw;box-shadow:var(--sh-lg);margin:auto}
+  .org-hdr{padding:20px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .org-hdr-left{flex:1}
+  .org-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:8px}
+  .org-sub{font-size:12px;color:var(--text3)}
+  .org-close{background:none;border:none;cursor:pointer;color:var(--text3);font-size:17px;padding:2px 5px;flex-shrink:0}
+  .org-toolbar{display:flex;align-items:center;gap:8px;padding:12px 22px;border-bottom:1px solid var(--border);background:var(--surface2);flex-wrap:wrap}
+  .org-mode-btn{padding:6px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text2);transition:all .15s;display:flex;align-items:center;gap:5px}
+  .org-mode-btn:hover,.org-mode-btn.active{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
+  .org-mode-btn.ai-btn{background:var(--purple-l);border-color:#AFA9EC;color:var(--purple)}
+  .org-mode-btn.ai-btn:hover{background:var(--purple);color:white}
+  .org-sel-info{margin-left:auto;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace}
+  .org-body{padding:0;max-height:52vh;overflow-y:auto}
+  .org-table{width:100%;border-collapse:collapse;font-size:12px}
+  .org-table th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;background:var(--surface);z-index:2}
+  .org-table td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .org-table tr:last-child td{border-bottom:none}
+  .org-table tr:hover td{background:var(--surface2)}
+  .org-check{width:14px;height:14px;cursor:pointer;accent-color:var(--blue)}
+  .org-change-arrow{color:var(--text3);margin:0 4px}
+  .org-new{color:var(--blue);font-weight:500}
+  .org-cat-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+  .org-badge{font-size:9px;padding:1px 5px;border-radius:10px;font-weight:700}
+  .org-badge.rename{background:var(--blue-l);color:var(--blue)}
+  .org-badge.recat{background:var(--green-l);color:var(--green)}
+  .org-badge.ai{background:var(--purple-l);color:var(--purple)}
+  .org-empty{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+  .org-loading{text-align:center;padding:40px;color:var(--purple);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .org-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--surface2)}
+  .org-stats{font-size:11px;color:var(--text3)}
+  .org-apply-btn{padding:9px 20px;background:linear-gradient(135deg,var(--green),#2D5A0A);color:white;border:none;border-radius:var(--rs);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 2px 8px rgba(59,109,17,.3);display:flex;align-items:center;gap:6px}
+  .org-apply-btn:hover{opacity:.9}
+  .org-apply-btn:disabled{opacity:.45;cursor:not-allowed}
+
+
+  .ocr-zone-icon{font-size:32px;margin-bottom:8px}
+  .ocr-zone-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px}
+  .ocr-zone-sub{font-size:11px;color:var(--text3);margin-bottom:12px}
+
+  /* COMPRESSION INFO */
+  .compress-info{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;background:var(--teal-l);color:var(--teal);border-radius:20px;font-weight:500;margin-top:8px}
+
+  /* OCR PROGRESS */
+  .ocr-progress{display:none;background:var(--blue-l);border:1px solid #91C0EF;border-radius:var(--rs);padding:13px 15px;margin-bottom:11px}
+  .ocr-progress.visible{display:block}
+  .ocr-prog-title{font-size:12px;font-weight:600;color:var(--blue);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+  .ocr-bar-bg{background:#C7DDEF;border-radius:4px;height:5px;overflow:hidden}
+  .ocr-bar-fill{height:100%;background:var(--blue);border-radius:4px;transition:width .3s;width:0}
+  .ocr-bar-lbl{font-size:10px;color:var(--blue);margin-top:4px;font-family:'DM Mono',monospace}
+
+  /* OCR RESULT */
+  .ocr-result{display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:13px;margin-bottom:11px;font-size:12px}
+  .ocr-result.visible{display:block}
+  .ocr-res-title{font-weight:600;font-size:12px;color:var(--text2);margin-bottom:7px;display:flex;align-items:center;justify-content:space-between}
+  .ocr-text-box{font-family:'DM Mono',monospace;font-size:11px;line-height:1.6;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);padding:9px;max-height:110px;overflow-y:auto;white-space:pre-wrap;margin-bottom:9px}
+  .ocr-ai-box{background:var(--purple-l);border:1px solid #AFA9EC;border-radius:var(--rs);padding:9px 11px;font-size:12px;color:#3C3489;line-height:1.6}
+  .spinner{width:13px;height:13px;border:2px solid rgba(83,74,183,.2);border-top-color:var(--purple);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+  .spinner-blue{width:13px;height:13px;border:2px solid rgba(24,95,165,.2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ai-loading{display:flex;align-items:center;gap:7px;color:var(--purple);font-size:12px}
+
+  /* AI PANEL */
+  .ai-panel{background:var(--purple-l);border:1px solid #AFA9EC;border-radius:var(--rs);padding:11px 13px;margin-bottom:11px;display:none}
+  .ai-panel.visible{display:block}
+  .ai-panel-title{font-size:10px;font-weight:700;color:var(--purple);margin-bottom:5px;display:flex;align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.05em}
+  .ai-panel-text{font-size:12px;color:#3C3489;line-height:1.6}
+
+  /* TOOLBAR */
+  .toolbar{display:flex;align-items:center;gap:7px;margin-bottom:11px;flex-wrap:wrap}
+  .search-wrap{flex:1;min-width:180px;position:relative}
+  .search-input{width:100%;padding:8px 11px 8px 32px;font-size:13px;border:1px solid var(--border);border-radius:var(--rs);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif}
+  .search-input:focus{outline:none;border-color:var(--blue);background:var(--surface)}
+  .search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+  .filter-btn{padding:7px 11px;font-size:12px;font-weight:500;border:1px solid var(--border);border-radius:var(--rs);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .1s;white-space:nowrap}
+  .filter-btn:hover{border-color:var(--blue);color:var(--blue)}
+  .filter-btn.active{background:var(--blue-l);color:var(--blue);border-color:var(--blue)}
+
+  /* TABLE */
+  .doc-table{width:100%;border-collapse:collapse;font-size:13px}
+  .doc-table th{text-align:left;padding:7px 9px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.06em}
+  .doc-table td{padding:9px 9px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .doc-table tr:last-child td{border-bottom:none}
+  .doc-table tr:hover td{background:var(--surface2)}
+  .doc-table tr{cursor:pointer;transition:background .08s}
+  .doc-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .doc-name{font-weight:500;color:var(--text);font-size:13px}
+  .doc-meta{font-size:11px;color:var(--text3);margin-top:1px;font-family:'DM Mono',monospace}
+  .doc-cell{display:flex;align-items:center;gap:9px}
+  .ocr-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 5px;background:var(--green-l);color:var(--green);border-radius:3px;margin-left:5px;font-weight:700}
+  .tag{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;display:inline-block;white-space:nowrap}
+  .status-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500}
+  .sdot{width:6px;height:6px;border-radius:50%}
+  .s-ok .sdot{background:#639922}.s-ok{color:var(--green)}
+  .s-warn .sdot{background:var(--amber)}.s-warn{color:var(--amber)}
+  .s-expire .sdot{background:var(--red)}.s-expire{color:var(--red)}
+  .action-btns{display:flex;gap:2px}
+  .action-btn{background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;border-radius:4px;font-size:12px;transition:all .1s}
+  .action-btn:hover{color:var(--text);background:var(--surface2)}
+  .action-btn.danger:hover{color:var(--red);background:var(--red-l)}
+
+  /* PAGINATION */
+  .pagination{display:flex;align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--text3)}
+  .page-btns{display:flex;gap:4px}
+  .page-btn{padding:3px 9px;border:1px solid var(--border);border-radius:var(--rs);cursor:pointer;font-size:12px;background:var(--surface2);color:var(--text2);font-family:'DM Sans',sans-serif}
+  .page-btn.active{background:var(--blue);color:white;border-color:var(--blue)}
+
+  /* MODAL */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;width:520px;max-width:95vw;box-shadow:var(--sh-lg);max-height:92vh;overflow-y:auto}
+  .modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .modal-title{font-size:15px;font-weight:600;letter-spacing:-.02em}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--text3);font-size:17px;padding:2px 5px}
+  .modal-row{margin-bottom:12px}
+  .modal-lbl{font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+  .modal-input{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--surface);font-family:'DM Sans',sans-serif;transition:border-color .15s}
+  .modal-input:focus{outline:none;border-color:var(--blue)}
+  select.modal-input{cursor:pointer}
+  .modal-btns{display:flex;justify-content:flex-end;gap:7px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+  .btn-cancel{padding:8px 16px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;cursor:pointer;background:var(--surface2);color:var(--text2);font-family:'DM Sans',sans-serif}
+  .btn-save{padding:8px 16px;background:var(--blue);color:white;border:none;border-radius:var(--rs);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 2px 8px rgba(24,95,165,.25)}
+  .btn-save:hover{background:var(--blue-d)}
+  .ocr-prefill{background:var(--green-l);border:1px solid #9BD164;border-radius:var(--rs);padding:9px 11px;font-size:12px;color:var(--green);margin-bottom:12px;display:none}
+  .ocr-prefill.visible{display:block}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+
+  /* SETTINGS */
+  .settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+  .settings-overlay.open{display:flex}
+  .settings-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:26px;width:500px;max-width:95vw;box-shadow:var(--sh-lg);max-height:90vh;overflow-y:auto}
+  .settings-title{font-size:15px;font-weight:600;margin-bottom:4px}
+  .settings-sub{font-size:12px;color:var(--text3);margin-bottom:18px}
+  .settings-sec-title{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+  .settings-row{margin-bottom:11px}
+  .settings-lbl{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px}
+  .settings-input{width:100%;padding:8px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--rs);color:var(--text);background:var(--bg);font-family:'DM Mono',monospace}
+  .settings-input:focus{outline:none;border-color:var(--blue)}
+  .settings-hint{font-size:10px;color:var(--text3);margin-top:2px}
+  .settings-btns{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+  .btn-test{padding:7px 14px;border:1px solid var(--blue);border-radius:var(--rs);font-size:12px;cursor:pointer;background:var(--blue-l);color:var(--blue);font-weight:600;font-family:'DM Sans',sans-serif}
+  .btn-test:hover{background:var(--blue);color:white}
+  .sql-code{background:#1A1916;color:#E2D6A8;border-radius:var(--rs);padding:11px 13px;font-family:'DM Mono',monospace;font-size:10.5px;line-height:1.6;overflow-x:auto;margin-top:5px;white-space:pre}
+  .settings-sec{margin-bottom:18px}
+
+  /* TOAST */
+  .toast-container{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px}
+  .toast{padding:11px 14px;border-radius:var(--rs);font-size:13px;color:white;box-shadow:var(--sh-lg);max-width:320px;display:flex;align-items:center;gap:8px;animation:slideIn .22s ease}
+  .toast.success{background:var(--green)}.toast.error{background:var(--red)}.toast.info{background:var(--blue)}
+  @keyframes slideIn{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+  /* EMPTY */
+  .empty-state{text-align:center;padding:44px 16px;color:var(--text3);font-size:13px}
+  .empty-icon{font-size:32px;margin-bottom:10px}
+
+  #file-input{display:none}
+
+  /* RENAME INPUT inline */
+  .cat-rename-input{flex:1;font-size:13px;padding:2px 6px;border:1px solid var(--blue);border-radius:3px;outline:none;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);min-width:0}
+
+  /* LOGIN SCREEN */
+  .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0C3E70 0%,#185FA5 50%,#1A7A6E 100%);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s}
+  .login-screen.hidden{opacity:0;pointer-events:none}
+  .login-box{background:var(--surface);border-radius:18px;padding:36px 32px;width:360px;max-width:92vw;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+  .login-logo{display:flex;align-items:center;gap:11px;margin-bottom:28px;justify-content:center}
+  .login-logo-icon{width:42px;height:42px;background:var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center}
+  .login-logo-text{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.03em}
+  .login-logo-badge{font-size:10px;padding:2px 7px;background:var(--green-l);color:var(--green);border-radius:20px;font-weight:600}
+  .login-title{font-size:14px;color:var(--text3);margin-bottom:22px;text-align:center}
+  .login-field{margin-bottom:14px}
+  .login-lbl{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .login-input{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:14px;color:var(--text);background:var(--bg);font-family:'DM Sans',sans-serif;transition:border-color .15s}
+  .login-input:focus{outline:none;border-color:var(--blue);background:var(--surface)}
+  .login-btn{width:100%;padding:11px;background:linear-gradient(135deg,var(--blue),var(--blue-d));color:white;border:none;border-radius:var(--rs);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;box-shadow:0 3px 10px rgba(24,95,165,.3);transition:opacity .15s}
+  .login-btn:hover{opacity:.9}
+  .login-err{display:none;background:var(--red-l);border:1px solid #F4B0B0;border-radius:var(--rs);padding:9px 12px;font-size:12px;color:var(--red);margin-bottom:12px;text-align:center}
+  .login-err.show{display:block}
+  /* USER MENU */
+  .user-chip{display:flex;align-items:center;gap:7px;padding:5px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);transition:all .15s;position:relative;user-select:none}
+  .user-chip:hover{border-color:var(--blue);color:var(--blue)}
+  .user-avatar{width:24px;height:24px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .user-dropdown{display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-lg);min-width:190px;z-index:100;padding:5px}
+  .user-chip.open .user-dropdown{display:block}
+  .user-dd-item{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:var(--rs);font-size:12px;color:var(--text2);cursor:pointer;transition:background .1s;white-space:nowrap}
+  .user-dd-item:hover{background:var(--surface2);color:var(--text)}
+  .user-dd-item.red:hover{background:var(--red-l);color:var(--red)}
+  .user-dd-sep{height:1px;background:var(--border);margin:3px 0}
+  /* CHANGE CREDENTIALS MODAL */
+  .cred-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+  .cred-overlay.open{display:flex}
+  .cred-modal{background:var(--surface);border-radius:14px;padding:26px;width:400px;max-width:94vw;box-shadow:var(--sh-lg)}
+  .cred-title{font-size:15px;font-weight:600;margin-bottom:4px}
+  .cred-sub{font-size:12px;color:var(--text3);margin-bottom:20px}
+  .cred-field{margin-bottom:13px}
+  .cred-lbl{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .cred-input{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--bg);font-family:'DM Sans',sans-serif;transition:border-color .15s}
+  .cred-input:focus{outline:none;border-color:var(--blue);background:var(--surface)}
+  .cred-err{display:none;background:var(--red-l);border:1px solid #F4B0B0;border-radius:var(--rs);padding:8px 11px;font-size:12px;color:var(--red);margin-bottom:10px}
+  .cred-err.show{display:block}
+  .cred-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+          <rect x="2" y="1" width="11" height="14" rx="2" fill="white" opacity="0.25"/>
+          <rect x="2" y="1" width="11" height="14" rx="2" stroke="white" stroke-width="1.3"/>
+          <path d="M5 5.5h6M5 8h6M5 10.5h4" stroke="white" stroke-width="1.1" stroke-linecap="round"/>
+          <circle cx="14" cy="13" r="3.5" fill="#4CAF80"/>
+          <path d="M12.5 13l1 1 2-2" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="login-logo-text">Dokumenti Pogon BK</span>
+      <span class="login-logo-badge">v3</span>
+    </div>
+    <div class="login-title">Prijavite se na sistem evidencije dokumentacije</div>
+    <div class="login-err" id="login-err">Pogrešno korisničko ime ili šifra.</div>
+    <div class="login-field">
+      <div class="login-lbl">Korisničko ime</div>
+      <input class="login-input" type="text" id="login-user" placeholder="Unesite korisničko ime..." autocomplete="username">
+    </div>
+    <div class="login-field">
+      <div class="login-lbl">Šifra</div>
+      <input class="login-input" type="password" id="login-pass" placeholder="Unesite šifru..." autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Prijava →</button>
+  </div>
+</div>
+
+<!-- CHANGE CREDENTIALS MODAL -->
+<div class="cred-overlay" id="cred-overlay" onclick="if(event.target===this)closeCred()">
+  <div class="cred-modal">
+    <div class="cred-title">✏️ Promjena podataka</div>
+    <div class="cred-sub">Promijenite vaše korisničko ime i/ili šifru.</div>
+    <div class="cred-err" id="cred-err"></div>
+    <div class="cred-field">
+      <div class="cred-lbl">Novo korisničko ime</div>
+      <input class="cred-input" type="text" id="cred-username" placeholder="Unesite novo korisničko ime...">
+    </div>
+    <div class="cred-field">
+      <div class="cred-lbl">Trenutna šifra (potvrda)</div>
+      <input class="cred-input" type="password" id="cred-old-pass" placeholder="Unesite trenutnu šifru...">
+    </div>
+    <div class="cred-field">
+      <div class="cred-lbl">Nova šifra (ostavite prazno za bez promjene)</div>
+      <input class="cred-input" type="password" id="cred-new-pass" placeholder="Nova šifra...">
+    </div>
+    <div class="cred-field">
+      <div class="cred-lbl">Ponovite novu šifru</div>
+      <input class="cred-input" type="password" id="cred-new-pass2" placeholder="Ponovite novu šifru...">
+    </div>
+    <div class="cred-btns">
+      <button class="btn-cancel" onclick="closeCred()">Otkaži</button>
+      <button class="btn-save" onclick="saveCred()">Spremi promjene</button>
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+        <rect x="2" y="1" width="11" height="14" rx="2" fill="white" opacity="0.25"/>
+        <rect x="2" y="1" width="11" height="14" rx="2" stroke="white" stroke-width="1.3"/>
+        <path d="M5 5.5h6M5 8h6M5 10.5h4" stroke="white" stroke-width="1.1" stroke-linecap="round"/>
+        <circle cx="14" cy="13" r="3.5" fill="#4CAF80"/>
+        <path d="M12.5 13l1 1 2-2" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    DokuVod
+    <span class="logo-badge">Pogon BK</span>
+  </div>
+  <div class="topbar-right">
+    <div class="conn-status disconnected" id="supabase-status" onclick="openSettings()" title="Supabase podešavanja">
+      <span class="conn-dot"></span>
+      <span id="sb-status-txt">Supabase: nije spojeno</span>
+    </div>
+    <button class="filter-btn" onclick="toggleAI()" id="ai-toggle">✦ AI</button>
+    <button class="filter-btn" style="display:flex;align-items:center;gap:5px" onclick="showUploadPanel()">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 4.5L7 2l2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Učitaj
+    </button>
+    <button class="btn-save" style="padding:7px 13px;font-size:12px" onclick="showModal()">+ Dodaj</button>
+    <div class="user-chip" id="user-chip" onclick="toggleUserMenu()">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <span id="user-chip-name">—</span>
+      <span>▾</span>
+      <div class="user-dropdown" id="user-dropdown">
+        <div class="user-dd-item" onclick="openCred();event.stopPropagation()">✏️ Promjena podataka</div>
+        <div class="user-dd-sep"></div>
+        <div class="user-dd-item red" onclick="doLogout();event.stopPropagation()">🚪 Odjava</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card active" onclick="filterCat('sve',this)">
+      <div class="stat-label">Ukupno</div>
+      <div class="stat-num" id="s-total">0</div>
+      <div class="stat-sub">Sve kategorije</div>
+    </div>
+    <div class="stat-card" onclick="filterCat('expire',this)">
+      <div class="stat-label">Ističu uskoro</div>
+      <div class="stat-num" style="color:var(--amber)" id="s-expire">0</div>
+      <div class="stat-sub">U sljedećih 30 dana</div>
+    </div>
+    <div class="stat-card" onclick="filterCat('ovaj-mjesec',this)">
+      <div class="stat-label">Ovaj mj.</div>
+      <div class="stat-num" id="s-month">0</div>
+      <div class="stat-sub" id="month-lbl"></div>
+    </div>
+    <div class="stat-card" onclick="filterCat('bez-taga',this)">
+      <div class="stat-label">Nekategorizirano</div>
+      <div class="stat-num" style="color:var(--red)" id="s-uncat">0</div>
+      <div class="stat-sub">Potrebna pažnja</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div style="margin-bottom:14px">
+        <div class="sidebar-title">Kategorije</div>
+        <div id="cat-list"></div>
+
+        <!-- NEW CATEGORY FORM -->
+        <button class="add-cat-btn" onclick="toggleNewCatForm()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Nova kategorija
+        </button>
+        <div class="new-cat-form" id="new-cat-form">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:7px">Nova kategorija</div>
+          <input class="new-cat-input" type="text" id="new-cat-name" placeholder="Naziv kategorije..." maxlength="30">
+          <input class="new-cat-input new-cat-emoji" type="text" id="new-cat-emoji" placeholder="Emoji ikona (npr. 📦)" maxlength="4">
+          <div class="new-cat-colors" id="color-picker"></div>
+          <div class="new-cat-btns">
+            <button class="btn-xs primary" onclick="addCategory()">Dodaj</button>
+            <button class="btn-xs cancel" onclick="toggleNewCatForm()">Otkaži</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:1px;background:var(--border);margin-bottom:14px"></div>
+
+      <div style="margin-bottom:14px">
+        <div class="sidebar-title">Brze akcije</div>
+        <button class="sidebar-btn primary" onclick="showUploadPanel()">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 4.5L7 2l2.5 2.5" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="white" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Učitaj dokument
+        </button>
+        <button class="sidebar-btn" onclick="showModal()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2v9M2 6.5h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Ručni unos
+        </button>
+        <button class="sidebar-btn" onclick="exportCSV()">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 6.5L7 9l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Izvezi CSV
+        </button>
+        <button class="sidebar-btn" onclick="openSettings()">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.93 2.93l1.06 1.06M10.01 10.01l1.06 1.06M2.93 11.07l1.06-1.06M10.01 3.99l1.06-1.06" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          Supabase / API
+        </button>
+        <button class="sidebar-btn" style="background:linear-gradient(135deg,var(--teal-l),#C5EDE8);border-color:#8DD0C8;color:var(--teal);font-weight:600" onclick="openOrganize()">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="1" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="8" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="8" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.2"/></svg>
+          Organizuj fajlove
+        </button>
+      </div>
+
+      <div style="height:1px;background:var(--border);margin-bottom:12px"></div>
+      <div class="sidebar-title">Sync</div>
+      <div class="sync-row" style="margin-bottom:6px">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-text">Lokalni mod</span>
+      </div>
+      <div style="font-size:10px;color:var(--text3);line-height:1.5">Povežite Supabase za cloud backup i sinkronizaciju s više uređaja.</div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content-area">
+      <div class="alert-bar warn" id="expiry-alert" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px"><circle cx="7" cy="7" r="6" stroke="#BA7517" stroke-width="1.2"/><path d="M7 4v3l2 1.5" stroke="#BA7517" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span id="expiry-text"></span>
+      </div>
+
+      <div class="ai-panel" id="ai-panel">
+        <div class="ai-panel-title">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--purple)" stroke-width="1"/><path d="M4 6l1.5 1.5L8 4" stroke="var(--purple)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          AI analiza dokumenta
+        </div>
+        <div class="ai-panel-text" id="ai-text">Kliknite na dokument za AI analizu i preporuke.</div>
+      </div>
+
+      <!-- UPLOAD PANEL -->
+      <div class="upload-panel" id="upload-panel">
+        <div class="upload-panel-hdr">
+          <div class="upload-panel-title">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 4.5L7 2l2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Učitaj dokument — automatski OCR
+          </div>
+          <button class="upload-panel-close" onclick="closeUploadPanel()">✕</button>
+        </div>
+        <div class="upload-methods" id="upload-methods">
+
+          <!-- 1. RAČUNAR / MOBITEL -->
+          <div class="upload-method" onclick="triggerFileComputer()">
+            <span class="method-badge auto">AUTO OCR</span>
+            <div class="upload-method-icon">🖥️</div>
+            <div class="upload-method-label">Računar / Mobitel</div>
+            <div class="upload-method-sub">Odaberite sliku, PDF ili<br>dokument s uređaja</div>
+          </div>
+
+          <!-- 2. KAMERA -->
+          <div class="upload-method" onclick="triggerCamera()">
+            <span class="method-badge auto">AUTO OCR</span>
+            <div class="upload-method-icon">📸</div>
+            <div class="upload-method-label">Uslikaj dokument</div>
+            <div class="upload-method-sub">Fotografišite dokument<br>kamerom uređaja</div>
+          </div>
+
+          <!-- 3. GOOGLE DRIVE -->
+          <div class="upload-method" onclick="openDrivePicker()">
+            <span class="method-badge drive">DRIVE</span>
+            <div class="upload-method-icon">
+              <svg width="32" height="32" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5A9.06 9.06 0 000 53h27.5z" fill="#00ac47"/>
+                <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57.5c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 10.9z" fill="#ea4335"/>
+                <path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.1.45-4.5 1.2z" fill="#00832d"/>
+                <path d="M59.8 53H27.5L13.75 76.8c1.4.8 2.95 1.2 4.5 1.2h50.8c1.6 0 3.1-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="M73.4 26.5l-13.1-22.7c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+            </div>
+            <div class="upload-method-label">Google Drive</div>
+            <div class="upload-method-sub">Otvorite fajl direktno<br>iz Google Drivea</div>
+          </div>
+
+          <!-- 4. CIJELI FOLDER -->
+          <div class="upload-method" onclick="triggerFolder()">
+            <span class="method-badge auto">AUTO OCR</span>
+            <div class="upload-method-icon">📁</div>
+            <div class="upload-method-label">Cijeli folder</div>
+            <div class="upload-method-sub">Učitajte sve fajlove<br>iz jednog foldera odjednom</div>
+          </div>
+        </div>
+        <div class="upload-drop-hint">
+          <div style="font-size:28px;margin-bottom:6px">📂</div>
+          Pustite fajl ovdje za automatski OCR
+        </div>
+      </div>
+
+      <!-- hidden file inputs -->
+      <input type="file" id="file-input-computer" accept="image/*,.pdf" onchange="handleFile(event)">
+      <input type="file" id="file-input-camera" accept="image/*" capture="environment" onchange="handleFile(event)">
+      <input type="file" id="file-input-folder" webkitdirectory multiple accept="image/*,.pdf" onchange="handleFolder(event)">
+
+      <!-- BATCH PROGRESS PANEL -->
+      <div class="batch-panel" id="batch-panel">
+        <div class="batch-hdr">
+          <div class="batch-hdr-title">
+            <div class="spinner-blue"></div>
+            <span id="batch-hdr-txt">Obradujem folder...</span>
+          </div>
+          <button onclick="cancelBatch()" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif">Zaustavi</button>
+        </div>
+        <div class="batch-overall">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text2)">
+            <span id="batch-overall-lbl">Priprema...</span>
+            <span id="batch-overall-pct" style="font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">0%</span>
+          </div>
+          <div class="batch-overall-bar"><div class="batch-overall-fill" id="batch-overall-fill"></div></div>
+        </div>
+        <div class="batch-list" id="batch-list"></div>
+        <div class="batch-footer" id="batch-footer" style="display:none">
+          <div class="batch-summary" id="batch-summary"></div>
+          <div style="display:flex;gap:7px">
+            <button class="btn-cancel" style="font-size:12px" onclick="closeBatch()">Zatvori</button>
+            <button class="btn-save" style="font-size:12px" id="batch-add-btn" onclick="addAllBatchDocs()">✓ Dodaj sve dokumente</button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- OCR PROGRESS -->
+      <div class="ocr-progress" id="ocr-progress">
+        <div class="ocr-prog-title">
+          <div class="spinner-blue"></div>
+          <span id="ocr-prog-lbl">Inicijaliziram...</span>
+        </div>
+        <div class="ocr-bar-bg"><div class="ocr-bar-fill" id="ocr-bar"></div></div>
+        <div class="ocr-bar-lbl" id="ocr-bar-lbl">0%</div>
+      </div>
+
+      <!-- OCR RESULT -->
+      <div class="ocr-result" id="ocr-result">
+        <div class="ocr-res-title">
+          <span>✓ OCR završen</span>
+          <button onclick="closeOCRResult()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px">✕</button>
+        </div>
+        <div class="ocr-text-box" id="ocr-text-out"></div>
+        <div class="ocr-ai-box" id="ocr-ai-out">
+          <div class="ai-loading"><div class="spinner"></div><span>AI analizira...</span></div>
+        </div>
+        <div style="display:flex;gap:7px;margin-top:9px">
+          <button class="btn-save" style="flex:1;font-size:12px" onclick="useOCR()">Spremi kao dokument →</button>
+          <button class="btn-cancel" style="font-size:12px" onclick="closeOCRResult()">Zatvori</button>
+        </div>
+      </div>
+
+      <!-- TOOLBAR -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg class="search-icon" width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <input class="search-input" type="text" placeholder="Pretraži..." oninput="applyFilters()" id="search-box">
+        </div>
+        <button class="filter-btn" onclick="sortBy('datum')" id="sort-datum">↕ Datum</button>
+        <button class="filter-btn" onclick="sortBy('naziv')" id="sort-naziv">A–Z</button>
+        <button class="filter-btn active" onclick="sortBy('kat')" id="sort-kat">Kategorija</button>
+      </div>
+
+      <table class="doc-table">
+        <thead>
+          <tr>
+            <th>Dokument</th>
+            <th>Kategorija</th>
+            <th>Status</th>
+            <th>Datum</th>
+            <th>Ističe</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="doc-tbody"></tbody>
+      </table>
+
+      <div class="pagination">
+        <span id="page-info">—</span>
+        <div class="page-btns" id="page-btns"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title">Dodaj dokument</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="ocr-prefill" id="ocr-prefill">✓ OCR podatci preneseni — pregledajte i ispravite.</div>
+    <div class="modal-row">
+      <div class="modal-lbl">Naziv dokumenta</div>
+      <input class="modal-input" type="text" id="m-name" placeholder="npr. Ugovor o radu — Petar Perić">
+    </div>
+    <div class="two-col">
+      <div class="modal-row">
+        <div class="modal-lbl">Kategorija</div>
+        <select class="modal-input" id="m-cat"></select>
+      </div>
+      <div class="modal-row">
+        <div class="modal-lbl">Izvor</div>
+        <select class="modal-input" id="m-source">
+          <option>Ručno</option><option>OCR skeniranje</option><option>Kamera</option><option>Google Drive</option><option>Folder</option>
+        </select>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="modal-row">
+        <div class="modal-lbl">Datum dokumenta</div>
+        <input class="modal-input" type="date" id="m-date">
+      </div>
+      <div class="modal-row">
+        <div class="modal-lbl">Datum isteka</div>
+        <input class="modal-input" type="date" id="m-expire">
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-lbl">Bilješka</div>
+      <input class="modal-input" type="text" id="m-notes" placeholder="Kratka napomena...">
+    </div>
+    <input type="hidden" id="m-id">
+    <input type="hidden" id="m-ocr">
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Otkaži</button>
+      <button class="btn-save" onclick="saveDoc()">Spremi</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-modal">
+    <div class="settings-title">⚙️ Podešavanja</div>
+    <div class="settings-sub">Supabase cloud sinkronizacija i Anthropic AI konfiguracija.</div>
+
+    <div class="settings-sec">
+      <div class="settings-sec-title">Supabase konekcija</div>
+      <div class="settings-row">
+        <div class="settings-lbl">Project URL</div>
+        <input class="settings-input" type="text" id="sb-url" placeholder="https://xxxx.supabase.co">
+        <div class="settings-hint">Settings → API u Supabase dashboardu</div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-lbl">Anon Key</div>
+        <input class="settings-input" type="password" id="sb-key" placeholder="eyJhbGci...">
+        <div class="settings-hint">Koristite <strong>anon</strong> (public) key</div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-lbl">Naziv tabele</div>
+        <input class="settings-input" type="text" id="sb-table" value="dokumenti">
+      </div>
+    </div>
+
+    <div class="settings-sec">
+      <div class="settings-sec-title">Anthropic API (AI analiza)</div>
+      <div class="settings-row">
+        <div class="settings-lbl">API Key</div>
+        <input class="settings-input" type="password" id="api-key" placeholder="sk-ant-api03-...">
+        <div class="settings-hint">Za automatsku AI analizu OCR teksta i dokumenata</div>
+      </div>
+    </div>
+
+    <div class="settings-sec">
+      <div class="settings-sec-title">SQL — Kreiranje tabele (izvršite jednom)</div>
+      <div class="sql-code">create table dokumenti (
+  id          bigint primary key generated always as identity,
+  name        text not null,
+  cat         text default 'ostalo',
+  date        date,
+  expire      date,
+  source      text,
+  status      text default 'ok',
+  notes       text,
+  ocr_text    text,
+  ai_summary  text,
+  created_at  timestamptz default now()
+);
+alter table dokumenti enable row level security;
+create policy "Javni pristup" on dokumenti
+  for all using (true);</div>
+    </div>
+
+    <div class="settings-btns">
+      <button class="btn-test" onclick="testSB()">🔌 Testiraj vezu</button>
+      <div style="display:flex;gap:7px">
+        <button class="btn-cancel" onclick="closeSettings()">Zatvori</button>
+        <button class="btn-save" onclick="saveSettings()">Spremi</button>
+      </div>
+    </div>
+    <div id="sb-msg" style="margin-top:10px;font-size:12px;display:none;padding:8px 11px;border-radius:var(--rs)"></div>
+  </div>
+</div>
+
+<!-- ORGANIZE MODAL -->
+<div class="org-overlay" id="org-overlay" onclick="if(event.target===this)closeOrganize()">
+  <div class="org-modal">
+    <div class="org-hdr">
+      <div class="org-hdr-left">
+        <div class="org-title">
+          <svg width="18" height="18" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1.2" stroke="var(--teal)" stroke-width="1.3"/><rect x="8" y="1" width="5" height="5" rx="1.2" stroke="var(--teal)" stroke-width="1.3"/><rect x="1" y="8" width="5" height="5" rx="1.2" stroke="var(--teal)" stroke-width="1.3"/><rect x="8" y="8" width="5" height="5" rx="1.2" stroke="var(--teal)" stroke-width="1.3"/></svg>
+          Organizuj fajlove
+        </div>
+        <div class="org-sub">Automatski predložite preimenovanje i rekategorizaciju dokumenata. Odaberite šta želite primijeniti.</div>
+      </div>
+      <button class="org-close" onclick="closeOrganize()">✕</button>
+    </div>
+    <div class="org-toolbar">
+      <button class="org-mode-btn active" id="org-btn-smart" onclick="runOrganizeSmart()">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.2 3.6H11L8.2 6.8l1 3.2L6 8.2 2.8 10l1-3.2L1 4.6h3.8z" stroke="currentColor" stroke-width="1" fill="currentColor" opacity=".2"/></svg>
+        Pametna organizacija
+      </button>
+      <button class="org-mode-btn ai-btn" id="org-btn-ai" onclick="runOrganizeAI()">
+        ✦ AI organizacija
+      </button>
+      <button class="org-mode-btn" id="org-btn-date" onclick="runOrganizeByDate()">
+        📅 Po datumu
+      </button>
+      <button class="org-mode-btn" id="org-btn-cat" onclick="runOrganizeByCat()">
+        🏷️ Po kategoriji
+      </button>
+      <div class="org-sel-info" id="org-sel-info">0 odabrano</div>
+    </div>
+    <div class="org-body">
+      <div class="org-loading" id="org-loading" style="display:none">
+        <div class="spinner" style="width:24px;height:24px;border-width:3px"></div>
+        <span id="org-loading-txt">AI analizira dokumente...</span>
+      </div>
+      <div id="org-empty" class="org-empty" style="display:none">
+        <div style="font-size:28px;margin-bottom:8px">✨</div>
+        Svi dokumenti su već dobro organizovani!
+      </div>
+      <table class="org-table" id="org-table" style="display:none">
+        <thead>
+          <tr>
+            <th style="width:32px"><input type="checkbox" id="org-check-all" onchange="orgToggleAll(this.checked)" class="org-check"></th>
+            <th>Trenutni naziv</th>
+            <th>Prijedlog</th>
+            <th>Kat. promjena</th>
+            <th>Vrsta</th>
+          </tr>
+        </thead>
+        <tbody id="org-tbody"></tbody>
+      </table>
+    </div>
+    <div class="org-footer">
+      <div class="org-stats" id="org-stats"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-cancel" onclick="closeOrganize()">Zatvori</button>
+        <button class="org-apply-btn" id="org-apply-btn" onclick="applyOrganize()" disabled>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 7l3 3 6-6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Primijeni odabrane
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ─── AUTH SYSTEM ─────────────────────────────────────────────────────────────
+const DEFAULT_USERS = [
+  { id:'amra',  username:'Amra Ismailovski', pin:'5555' },
+  { id:'nedim', username:'Nedim Ćehić',      pin:'7777' },
+  { id:'izet',  username:'Izet Velagić',     pin:'4444' },
+];
+
+function loadUsers() {
+  try { const u=localStorage.getItem('dokuvod_users'); return u?JSON.parse(u):[...DEFAULT_USERS]; } catch(e){ return [...DEFAULT_USERS]; }
+}
+function saveUsers(users) { try { localStorage.setItem('dokuvod_users',JSON.stringify(users)); } catch(e){} }
+
+let USERS = loadUsers();
+let currentUser = null;
+
+function doLogin() {
+  const uname = document.getElementById('login-user').value.trim();
+  const pass   = document.getElementById('login-pass').value.trim();
+  const err    = document.getElementById('login-err');
+  err.classList.remove('show');
+  const user = USERS.find(u => u.username.toLowerCase()===uname.toLowerCase() && u.pin===pass);
+  if(!user){ err.classList.add('show'); document.getElementById('login-pass').value=''; return; }
+  currentUser = user;
+  try { sessionStorage.setItem('dokuvod_uid', user.id); } catch(e){}
+  err.classList.remove('show');
+  updateUserChip();
+  const ls = document.getElementById('login-screen');
+  ls.classList.add('hidden');
+  setTimeout(()=>ls.style.display='none',450);
+}
+
+function doLogout() {
+  currentUser = null;
+  try { sessionStorage.removeItem('dokuvod_uid'); } catch(e){}
+  const ls = document.getElementById('login-screen');
+  ls.style.display='flex';
+  setTimeout(()=>ls.classList.remove('hidden'),10);
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-err').classList.remove('show');
+  document.getElementById('user-chip').classList.remove('open');
+}
+
+function updateUserChip() {
+  if(!currentUser) return;
+  const initials = currentUser.username.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('user-avatar').textContent = initials;
+  document.getElementById('user-chip-name').textContent = currentUser.username.split(' ')[0];
+}
+
+function toggleUserMenu() {
+  document.getElementById('user-chip').classList.toggle('open');
+}
+
+// Close user menu on outside click
+document.addEventListener('click', e => {
+  const chip = document.getElementById('user-chip');
+  if(chip && !chip.contains(e.target)) chip.classList.remove('open');
+});
+
+function openCred() {
+  document.getElementById('user-chip').classList.remove('open');
+  document.getElementById('cred-username').value = currentUser?.username||'';
+  document.getElementById('cred-old-pass').value = '';
+  document.getElementById('cred-new-pass').value = '';
+  document.getElementById('cred-new-pass2').value = '';
+  document.getElementById('cred-err').classList.remove('show');
+  document.getElementById('cred-overlay').classList.add('open');
+}
+function closeCred() { document.getElementById('cred-overlay').classList.remove('open'); }
+
+function saveCred() {
+  const newUsername = document.getElementById('cred-username').value.trim();
+  const oldPass     = document.getElementById('cred-old-pass').value.trim();
+  const newPass     = document.getElementById('cred-new-pass').value.trim();
+  const newPass2    = document.getElementById('cred-new-pass2').value.trim();
+  const errEl       = document.getElementById('cred-err');
+  errEl.classList.remove('show');
+
+  if(!newUsername){ errEl.textContent='Korisničko ime ne može biti prazno.'; errEl.classList.add('show'); return; }
+  if(!oldPass){ errEl.textContent='Unesite trenutnu šifru za potvrdu.'; errEl.classList.add('show'); return; }
+  if(oldPass !== currentUser.pin){ errEl.textContent='Trenutna šifra nije ispravna.'; errEl.classList.add('show'); return; }
+  if(newPass && newPass !== newPass2){ errEl.textContent='Nove šifre se ne poklapaju.'; errEl.classList.add('show'); return; }
+  if(newPass && newPass.length < 4){ errEl.textContent='Šifra mora imati najmanje 4 znaka.'; errEl.classList.add('show'); return; }
+
+  // Check username uniqueness
+  const conflict = USERS.find(u => u.id!==currentUser.id && u.username.toLowerCase()===newUsername.toLowerCase());
+  if(conflict){ errEl.textContent='Korisničko ime već postoji.'; errEl.classList.add('show'); return; }
+
+  const idx = USERS.findIndex(u=>u.id===currentUser.id);
+  USERS[idx].username = newUsername;
+  if(newPass) USERS[idx].pin = newPass;
+  currentUser = USERS[idx];
+  saveUsers(USERS);
+  updateUserChip();
+  closeCred();
+  toast('Podaci uspješno promijenjeni','success');
+}
+
+// ─── LOGIN ENTER KEY ──────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if(e.key==='Enter'){
+    if(document.getElementById('login-screen').style.display!=='none' && !document.getElementById('login-screen').classList.contains('hidden')){
+      doLogin();
+    }
+  }
+});
+
+// ─── COLOUR PALETTE FOR CATEGORIES ──────────────────────────────────────────
+const CAT_COLORS = ['#185FA5','#3B6D11','#BA7517','#C73B3A','#534AB7','#993556','#1A7A6E','#7A4510','#1A5A7A','#5A1A7A','#7A1A3B','#2E7D32'];
+
+// ─── DEFAULT CATEGORIES ──────────────────────────────────────────────────────
+const DEFAULT_CATS = [
+  { id:'ugovori',      name:'Ugovori',        color:'#185FA5', emoji:'📄', builtin:true },
+  { id:'uzgoj',        name:'Uzgoj',           color:'#3B6D11', emoji:'🌱', builtin:true },
+  { id:'proizvodnja',  name:'Proizvodnja',     color:'#BA7517', emoji:'🏭', builtin:true },
+  { id:'gmo',          name:'GMO',             color:'#C73B3A', emoji:'🧬', builtin:true },
+  { id:'certificiranje',name:'Certificiranje', color:'#534AB7', emoji:'🏅', builtin:true },
+  { id:'izvjestaji',   name:'Izvještaji',      color:'#1A7A6E', emoji:'📊', builtin:true },
+  { id:'ostalo',       name:'Ostalo',          color:'#888780', emoji:'📎', builtin:true },
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let CATS = loadCats();
+let DOCS = loadDocs();
+let filtered = [...DOCS];
+let activeTag = 'sve';
+let aiVisible = false;
+let editingId = null;
+let pendingOCR = null;
+let sortState = { col:'kat', asc:true };
+let selectedColor = CAT_COLORS[0];
+
+let CONFIG = {
+  supabaseUrl:   localStorage.getItem('sb_url')   || '',
+  supabaseKey:   localStorage.getItem('sb_key')   || '',
+  supabaseTable: localStorage.getItem('sb_table') || 'dokumenti',
+  apiKey:        localStorage.getItem('anthro_key')|| '',
+};
+
+// ─── PERSISTENCE ─────────────────────────────────────────────────────────────
+function saveDocs()  { try { localStorage.setItem('dokuvod_docs', JSON.stringify(DOCS)); } catch(e){} }
+function saveCats()  { try { localStorage.setItem('dokuvod_cats', JSON.stringify(CATS)); } catch(e){} }
+function loadDocs()  { try { const d = localStorage.getItem('dokuvod_docs'); return d ? JSON.parse(d) : defaultDocs(); } catch(e){ return defaultDocs(); } }
+function loadCats()  { try { const d = localStorage.getItem('dokuvod_cats'); return d ? JSON.parse(d) : [...DEFAULT_CATS]; } catch(e){ return [...DEFAULT_CATS]; } }
+
+function defaultDocs() {
+  return [
+    { id:1,  name:"Ugovor o poslovnoj suradnji",      cat:"ugovori",        date:"2026-03-01", expire:"2026-04-15", source:"Scanner",  status:"warn",   notes:"",  ocr_text:"", ai_summary:"Ugovor sadrži klauzulu o automatskom produženju — preporučujem provjeru uvjeta." },
+    { id:2,  name:"Izvještaj o uzgoju — Q1 2026",     cat:"uzgoj",          date:"2026-04-01", expire:"",          source:"Ručno",    status:"ok",     notes:"",  ocr_text:"", ai_summary:"Kvartalni izvještaj o uzgoju. Provjeri usklađenost s planom." },
+    { id:3,  name:"Plan proizvodnje 2026",             cat:"proizvodnja",    date:"2026-01-15", expire:"2026-12-31", source:"Drive",    status:"ok",     notes:"",  ocr_text:"", ai_summary:"Godišnji plan. Redovito ažurirajte prema napretku." },
+    { id:4,  name:"GMO analiza — parcela 12",          cat:"gmo",            date:"2026-03-28", expire:"2026-09-28", source:"Lab",      status:"ok",     notes:"",  ocr_text:"", ai_summary:"GMO analiza parcele. Čuvajte u trajnom arhivu." },
+    { id:5,  name:"Certifikat organskog uzgoja",       cat:"certificiranje", date:"2025-04-22", expire:"2026-04-22", source:"Scanner", status:"warn",   notes:"",  ocr_text:"", ai_summary:"Certifikat ističe uskoro. Pokrenite postupak obnove." },
+    { id:6,  name:"Godišnji izvještaj 2025",           cat:"izvjestaji",     date:"2025-12-31", expire:"",          source:"Scanner",  status:"ok",     notes:"",  ocr_text:"", ai_summary:"Godišnji izvještaj. Pohranite u trajni arhiv." },
+    { id:7,  name:"Ugovor s dobavljačem sjemena",      cat:"ugovori",        date:"2025-10-01", expire:"2026-04-15", source:"Drive",   status:"expire", notes:"",  ocr_text:"", ai_summary:"HITNO: Ugovor ističe! Kontaktirajte dobavljača." },
+    { id:8,  name:"Certifikat ISO 9001",               cat:"certificiranje", date:"2024-06-10", expire:"2027-06-10", source:"Scanner",  status:"ok",     notes:"",  ocr_text:"", ai_summary:"ISO certifikat na snazi do 2027. Planirajte reviziju." },
+  ];
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const now = new Date();
+  document.getElementById('m-date').value = now.toISOString().split('T')[0];
+  document.getElementById('month-lbl').textContent = now.toLocaleDateString('bs-BA',{month:'long',year:'numeric'});
+
+  // Load settings
+  document.getElementById('sb-url').value   = CONFIG.supabaseUrl;
+  document.getElementById('sb-key').value   = CONFIG.supabaseKey;
+  document.getElementById('sb-table').value = CONFIG.supabaseTable;
+  document.getElementById('api-key').value  = CONFIG.apiKey;
+
+  buildColorPicker();
+  renderCatList();
+  populateCatSelect();
+  renderTable(DOCS);
+  updateBadges();
+  buildExpiryAlert();
+
+  // Drag-drop — works on upload panel AND the whole content area
+  const contentArea = document.querySelector('.content-area');
+  const uploadPanel = document.getElementById('upload-panel');
+  contentArea.addEventListener('dragover', e => {
+    e.preventDefault();
+    showUploadPanel();
+    uploadPanel.classList.add('dragover');
+  });
+  uploadPanel.addEventListener('dragover', e => { e.preventDefault(); uploadPanel.classList.add('dragover'); });
+  uploadPanel.addEventListener('dragleave', e => { if(!uploadPanel.contains(e.relatedTarget)) uploadPanel.classList.remove('dragover'); });
+  uploadPanel.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadPanel.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files).filter(f => SUPPORTED.includes(f.type));
+    if(!files.length) { toast('Nema podržanih fajlova (slike / PDF)', 'error'); return; }
+    closeUploadPanel();
+    if(files.length === 1) processFile(files[0]);
+    else startBatch(files);
+  });
+
+  if(CONFIG.supabaseUrl && CONFIG.supabaseKey) loadFromSB();
+});
+
+// ─── CATEGORY MANAGEMENT ─────────────────────────────────────────────────────
+function buildColorPicker() {
+  const cp = document.getElementById('color-picker');
+  cp.innerHTML = CAT_COLORS.map((c,i) =>
+    `<div class="color-pick${i===0?' selected':''}" style="background:${c}" data-color="${c}" onclick="pickColor(this,'${c}')"></div>`
+  ).join('');
+}
+
+function pickColor(el, color) {
+  document.querySelectorAll('.color-pick').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedColor = color;
+}
+
+function toggleNewCatForm() {
+  const f = document.getElementById('new-cat-form');
+  f.classList.toggle('visible');
+  if(f.classList.contains('visible')) {
+    document.getElementById('new-cat-name').focus();
+    document.getElementById('new-cat-name').value = '';
+    document.getElementById('new-cat-emoji').value = '';
+    selectedColor = CAT_COLORS[0];
+    buildColorPicker();
+  }
+}
+
+function addCategory() {
+  const name = document.getElementById('new-cat-name').value.trim();
+  if(!name) { document.getElementById('new-cat-name').style.borderColor='var(--red)'; return; }
+  document.getElementById('new-cat-name').style.borderColor='';
+  const emoji = document.getElementById('new-cat-emoji').value.trim() || '📁';
+  const id = 'cat_' + Date.now();
+  CATS.push({ id, name, color:selectedColor, emoji, builtin:false });
+  saveCats();
+  renderCatList();
+  populateCatSelect();
+  updateBadges();
+  toggleNewCatForm();
+  toast(`Kategorija "${name}" dodana`, 'success');
+}
+
+function startRenamecat(id, e) {
+  e.stopPropagation();
+  const cat = CATS.find(c => c.id === id);
+  if(!cat || cat.builtin) return;
+  const item = document.querySelector(`[data-catid="${id}"] .cat-name`);
+  if(!item) return;
+  const input = document.createElement('input');
+  input.className = 'cat-rename-input';
+  input.value = cat.name;
+  item.replaceWith(input);
+  input.focus();
+  input.select();
+  const finish = () => {
+    const v = input.value.trim();
+    if(v) { cat.name = v; saveCats(); }
+    renderCatList();
+    populateCatSelect();
+    updateBadges();
+  };
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', e => { if(e.key==='Enter') input.blur(); if(e.key==='Escape'){ input.value=cat.name; input.blur(); } });
+}
+
+function deleteCategory(id, e) {
+  e.stopPropagation();
+  const cat = CATS.find(c => c.id===id);
+  if(!cat || cat.builtin) return;
+  const count = DOCS.filter(d => d.cat===id).length;
+  if(count > 0) {
+    if(!confirm(`Kategorija "${cat.name}" sadrži ${count} dokument(a). Dokumenti će biti premješteni u "Ostalo". Nastaviti?`)) return;
+    DOCS.forEach(d => { if(d.cat===id) d.cat='ostalo'; });
+    saveDocs();
+  }
+  CATS = CATS.filter(c => c.id!==id);
+  saveCats();
+  if(activeTag===id) { activeTag='sve'; }
+  renderCatList();
+  populateCatSelect();
+  renderTable(DOCS);
+  updateBadges();
+  toast(`Kategorija "${cat.name}" obrisana`, 'info');
+}
+
+function renderCatList() {
+  const list = document.getElementById('cat-list');
+  const allItem = `
+    <div class="cat-item${activeTag==='sve'?' active':''}" onclick="filterTag('sve',this)">
+      <div class="cat-item-left">
+        <span class="cat-dot" style="background:#888780"></span>
+        <span class="cat-name">Svi dokumenti</span>
+      </div>
+      <span class="cat-badge" id="b-sve">${DOCS.length}</span>
+    </div>`;
+  const catItems = CATS.map(c => {
+    const cnt = DOCS.filter(d => d.cat===c.id).length;
+    const isActive = activeTag===c.id;
+    return `
+      <div class="cat-item${isActive?' active':''}" data-catid="${c.id}" onclick="filterTag('${c.id}',this)">
+        <div class="cat-item-left">
+          <span class="cat-dot" style="background:${c.color}"></span>
+          <span class="cat-name">${esc(c.name)}</span>
+        </div>
+        <span class="cat-badge" id="b-${c.id}">${cnt}</span>
+        ${!c.builtin ? `<div class="cat-actions">
+          <button class="cat-act-btn" onclick="startRenamecat('${c.id}',event)" title="Preimenuj">✎</button>
+          <button class="cat-act-btn del" onclick="deleteCategory('${c.id}',event)" title="Obriši">✕</button>
+        </div>` : ''}
+      </div>`;
+  }).join('');
+  list.innerHTML = allItem + catItems;
+}
+
+function populateCatSelect() {
+  const sel = document.getElementById('m-cat');
+  const cur = sel.value;
+  sel.innerHTML = CATS.map(c => `<option value="${c.id}">${c.emoji} ${esc(c.name)}</option>`).join('');
+  if(cur && CATS.find(c => c.id===cur)) sel.value = cur;
+}
+
+function getCat(id) { return CATS.find(c => c.id===id) || { name:'Ostalo', color:'#888780', emoji:'📎' }; }
+
+// ─── SUPABASE ────────────────────────────────────────────────────────────────
+async function sbFetch(method, path, body) {
+  const url = `${CONFIG.supabaseUrl}/rest/v1/${path}`;
+  const h = { 'apikey':CONFIG.supabaseKey, 'Authorization':`Bearer ${CONFIG.supabaseKey}`, 'Content-Type':'application/json', 'Prefer': method==='POST'?'return=representation':'' };
+  const r = await fetch(url, { method, headers:h, body: body?JSON.stringify(body):undefined });
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadFromSB() {
+  if(!CONFIG.supabaseUrl||!CONFIG.supabaseKey) return;
+  setSyncState('syncing','Učitavam...');
+  try {
+    const data = await sbFetch('GET',`${CONFIG.supabaseTable}?order=created_at.desc`);
+    if(data&&data.length) {
+      DOCS = data.map(d => ({ id:d.id, name:d.name, cat:d.cat||'ostalo', date:d.date||'', expire:d.expire||'', source:d.source||'', status:d.status||'ok', notes:d.notes||'', ocr_text:d.ocr_text||'', ai_summary:d.ai_summary||'', _sbid:d.id }));
+      saveDocs();
+      filtered = [...DOCS];
+    }
+    renderCatList(); renderTable(DOCS); updateBadges(); buildExpiryAlert();
+    setSyncState('ok',`Sinkronizirano (${DOCS.length})`);
+    setSBStatus('connected','Supabase: spojeno');
+    toast('Dokumenti učitani iz Supabase','success');
+  } catch(e) {
+    setSyncState('error','Greška');
+    setSBStatus('error','Supabase: greška');
+  }
+}
+
+async function saveToDB(doc) {
+  if(!CONFIG.supabaseUrl||!CONFIG.supabaseKey) return null;
+  const p = { name:doc.name, cat:doc.cat, date:doc.date||null, expire:doc.expire||null, source:doc.source, status:doc.status, notes:doc.notes||'', ocr_text:doc.ocr_text||'', ai_summary:doc.ai_summary||'' };
+  setSyncState('syncing','Spremam...');
+  try {
+    let r;
+    if(doc._sbid) r = await sbFetch('PATCH',`${CONFIG.supabaseTable}?id=eq.${doc._sbid}`,p);
+    else r = await sbFetch('POST',CONFIG.supabaseTable,p);
+    setSyncState('ok','Sinkronizirano');
+    return Array.isArray(r)?r[0]:r;
+  } catch(e) { setSyncState('error','Greška'); return null; }
+}
+
+async function deleteFromDB(sbid) {
+  if(!CONFIG.supabaseUrl||!CONFIG.supabaseKey||!sbid) return;
+  try { await sbFetch('DELETE',`${CONFIG.supabaseTable}?id=eq.${sbid}`); } catch(e){}
+}
+
+function setSyncState(s,t) {
+  const dot=document.getElementById('sync-dot');
+  document.getElementById('sync-text').textContent=t;
+  dot.className='sync-dot'+(s==='syncing'?' syncing':'');
+  dot.style.background=s==='ok'?'var(--green)':s==='error'?'var(--red)':'var(--amber)';
+}
+function setSBStatus(s,t) {
+  const el=document.getElementById('supabase-status');
+  el.className='conn-status '+s;
+  document.getElementById('sb-status-txt').textContent=t;
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+function openSettings() { document.getElementById('settings-overlay').classList.add('open'); }
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('open'); }
+function saveSettings() {
+  CONFIG.supabaseUrl   = document.getElementById('sb-url').value.trim().replace(/\/$/,'');
+  CONFIG.supabaseKey   = document.getElementById('sb-key').value.trim();
+  CONFIG.supabaseTable = document.getElementById('sb-table').value.trim()||'dokumenti';
+  CONFIG.apiKey        = document.getElementById('api-key').value.trim();
+  localStorage.setItem('sb_url',CONFIG.supabaseUrl);
+  localStorage.setItem('sb_key',CONFIG.supabaseKey);
+  localStorage.setItem('sb_table',CONFIG.supabaseTable);
+  localStorage.setItem('anthro_key',CONFIG.apiKey);
+  closeSettings();
+  toast('Podešavanja spremljena','success');
+  if(CONFIG.supabaseUrl&&CONFIG.supabaseKey) setTimeout(loadFromSB,300);
+}
+async function testSB() {
+  const url=document.getElementById('sb-url').value.trim().replace(/\/$/,'');
+  const key=document.getElementById('sb-key').value.trim();
+  const tbl=document.getElementById('sb-table').value.trim()||'dokumenti';
+  showSBMsg('🔌 Testiram...','var(--blue)');
+  try {
+    const r=await fetch(`${url}/rest/v1/${tbl}?limit=1`,{headers:{'apikey':key,'Authorization':`Bearer ${key}`}});
+    if(r.ok) showSBMsg('✅ Veza uspješna!','var(--green)');
+    else if(r.status===404) showSBMsg('⚠️ Veza OK ali tabela ne postoji. Izvršite SQL.','var(--amber)');
+    else showSBMsg(`❌ HTTP ${r.status} — provjerite URL i key.`,'var(--red)');
+  } catch(e) { showSBMsg('❌ Ne mogu se spojiti.','var(--red)'); }
+}
+function showSBMsg(t,c) {
+  const el=document.getElementById('sb-msg');
+  el.style.cssText=`display:block;color:${c};background:${c}18;border:1px solid ${c}40;border-radius:var(--rs);padding:8px 11px`;
+  el.textContent=t;
+}
+
+// ─── UPLOAD PANEL ────────────────────────────────────────────────────────────
+function showUploadPanel() {
+  document.getElementById('upload-panel').classList.add('visible');
+  document.getElementById('ocr-result').classList.remove('visible');
+  document.getElementById('ocr-progress').classList.remove('visible');
+}
+function closeUploadPanel() {
+  document.getElementById('upload-panel').classList.remove('visible');
+}
+function triggerFileComputer() { document.getElementById('file-input-computer').click(); }
+function triggerCamera()       { document.getElementById('file-input-camera').click(); }
+function triggerFolder()       { document.getElementById('file-input-folder').click(); }
+
+function openDrivePicker() {
+  const popup = window.open('https://drive.google.com/drive/my-drive','drive_picker','width=900,height=650,scrollbars=yes,resizable=yes');
+  toast('Preuzmite fajl iz Google Drivea pa ga učitajte opcijom Računar/Mobitel', 'info');
+}
+
+// ─── OCR HELPERS ─────────────────────────────────────────────────────────────
+function showOCRZone()   { showUploadPanel(); }
+function closeOCRZone()  { closeUploadPanel(); }
+function triggerFile()   { triggerFileComputer(); }
+function closeOCRResult(){ document.getElementById('ocr-result').classList.remove('visible'); pendingOCR=null; }
+function handleFile(e)   { const f=e.target.files[0]; if(f){ closeUploadPanel(); processFile(f); } e.target.value=''; }
+
+// ─── FOLDER / BATCH ───────────────────────────────────────────────────────────
+let batchQueue   = [];   // {file, status:'wait'|'proc'|'done'|'err', result:null}
+let batchActive  = false;
+let batchStopped = false;
+const SUPPORTED  = ['image/jpeg','image/png','image/webp','image/bmp','image/tiff','application/pdf'];
+
+function handleFolder(e) {
+  const all = Array.from(e.target.files).filter(f => SUPPORTED.includes(f.type));
+  e.target.value = '';
+  if(!all.length){ toast('Nema podržanih fajlova u folderu (slike / PDF)', 'error'); return; }
+  closeUploadPanel();
+  startBatch(all);
+}
+
+function startBatch(files) {
+  batchQueue   = files.map(f => ({ file:f, status:'wait', result:null }));
+  batchActive  = true;
+  batchStopped = false;
+  document.getElementById('batch-panel').classList.add('visible');
+  document.getElementById('batch-footer').style.display = 'none';
+  document.getElementById('ocr-result').classList.remove('visible');
+  document.getElementById('ocr-progress').classList.remove('visible');
+  renderBatchList();
+  processBatchQueue();
+}
+
+function renderBatchList() {
+  const list = document.getElementById('batch-list');
+  list.innerHTML = batchQueue.map((item,i) => {
+    const icons = { wait:'⏳', proc:'⚙️', done:'✓', err:'✕' };
+    const cls   = { wait:'bi-wait', proc:'bi-proc', done:'bi-done', err:'bi-err' };
+    const stxt  = { wait:'Čeka', proc:'Obrađujem...', done:'Gotovo', err:'Greška' };
+    return `<div class="batch-item" id="bi-${i}">
+      <div class="batch-item-icon ${cls[item.status]}">${icons[item.status]}</div>
+      <div class="batch-item-name" title="${esc(item.file.name)}">${esc(item.file.name)}</div>
+      <div class="batch-item-status">${stxt[item.status]}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateBatchItem(i) {
+  const item = batchQueue[i];
+  const el   = document.getElementById('bi-'+i);
+  if(!el) return;
+  const icons = { wait:'⏳', proc:'⚙️', done:'✓', err:'✕' };
+  const cls   = { wait:'bi-wait', proc:'bi-proc', done:'bi-done', err:'bi-err' };
+  const stxt  = { wait:'Čeka', proc:'Obrađujem...', done:'Gotovo', err:'Greška' };
+  el.querySelector('.batch-item-icon').className = `batch-item-icon ${cls[item.status]}`;
+  el.querySelector('.batch-item-icon').textContent = icons[item.status];
+  el.querySelector('.batch-item-status').textContent = stxt[item.status];
+  // scroll into view
+  el.scrollIntoView({ block:'nearest' });
+}
+
+async function processBatchQueue() {
+  const total = batchQueue.length;
+  for(let i = 0; i < total; i++) {
+    if(batchStopped) break;
+    const item = batchQueue[i];
+    item.status = 'proc';
+    updateBatchItem(i);
+    const pct = Math.round((i / total) * 100);
+    document.getElementById('batch-overall-fill').style.width = pct + '%';
+    document.getElementById('batch-overall-pct').textContent  = pct + '%';
+    document.getElementById('batch-overall-lbl').textContent  = `Obradujem ${i+1} / ${total}: ${item.file.name.substring(0,40)}`;
+    document.getElementById('batch-hdr-txt').textContent = `Obradujem folder — ${i+1}/${total}`;
+    try {
+      let text = '';
+      if(item.file.type === 'application/pdf') {
+        text = await extractPDF(item.file);
+      } else {
+        const compressed = await compressImage(item.file);
+        const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, { logger: ()=>{} });
+        const res = await worker.recognize(compressed);
+        await worker.terminate();
+        text = res.data.text;
+      }
+      // Basic AI-free analysis (keyword matching for categories)
+      const cat  = guessCatFromText(text, item.file.name);
+      const name = guessNameFromFile(item.file.name);
+      item.result = { text, cat, name, date: new Date().toISOString().split('T')[0] };
+      item.status = 'done';
+    } catch(err) {
+      item.status = 'err';
+      item.result = { text:'', cat:'ostalo', name: item.file.name.replace(/\.[^.]+$/,''), date: new Date().toISOString().split('T')[0] };
+    }
+    updateBatchItem(i);
+  }
+  // Done
+  batchActive = false;
+  document.getElementById('batch-overall-fill').style.width = '100%';
+  document.getElementById('batch-overall-pct').textContent  = '100%';
+  const done = batchQueue.filter(x => x.status==='done').length;
+  const err  = batchQueue.filter(x => x.status==='err').length;
+  document.getElementById('batch-overall-lbl').textContent  = batchStopped ? 'Zaustavljeno' : 'Obrada završena';
+  document.getElementById('batch-hdr-txt').textContent = batchStopped ? '⏹ Zaustavljeno' : `✓ Gotovo — ${done} fajlova`;
+  document.getElementById('batch-summary').innerHTML = `<strong>${done}</strong> fajl(ova) obrađeno${err?` · <span style="color:var(--red)">${err} greška</span>`:''}`;
+  document.getElementById('batch-footer').style.display = 'flex';
+}
+
+function cancelBatch()  { batchStopped = true; }
+function closeBatch()   { document.getElementById('batch-panel').classList.remove('visible'); batchQueue = []; }
+
+function addAllBatchDocs() {
+  const toAdd = batchQueue.filter(x => x.status === 'done' && x.result);
+  toAdd.forEach(item => {
+    const r = item.result;
+    const expire = '';
+    const doc = {
+      id: Date.now() + Math.random(),
+      name: r.name,
+      cat:  r.cat,
+      date: r.date,
+      expire,
+      source: 'Folder upload',
+      notes: '',
+      ocr_text: r.text.substring(0, 2000),
+      status: 'ok',
+      ai_summary: ''
+    };
+    DOCS.unshift(doc);
+  });
+  saveDocs();
+  renderCatList(); renderTable(DOCS); updateBadges(); buildExpiryAlert(); applyFilters();
+  toast(`${toAdd.length} dokument(a) dodano iz foldera`, 'success');
+  closeBatch();
+}
+
+// Keyword-based category guesser
+function guessCatFromText(text, fname) {
+  const s = (text + ' ' + fname).toLowerCase();
+  if(/(ugovor|contract|sporazum|agreement)/.test(s))         return 'ugovori';
+  if(/(uzgoj|sjetva|sjeme|harvest|sjemenski|biljk)/.test(s)) return 'uzgoj';
+  if(/(proizvod|fabrik|pogon|output|produkci)/.test(s))      return 'proizvodnja';
+  if(/(gmo|genetski|transgen|organizam)/.test(s))            return 'gmo';
+  if(/(certifi|sertifi|iso|standard|akreditaci)/.test(s))    return 'certificiranje';
+  if(/(izvještaj|report|analiza|pregled|statistik)/.test(s)) return 'izvjestaji';
+  return 'ostalo';
+}
+
+function guessNameFromFile(fname) {
+  return fname.replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim();
+}
+
+// ─── ORGANIZE ────────────────────────────────────────────────────────────────
+let orgSuggestions = [];   // [{docId, newName, newCat, type:'rename'|'recat'|'both', selected:true}]
+
+function openOrganize() {
+  orgSuggestions = [];
+  document.getElementById('org-overlay').classList.add('open');
+  document.getElementById('org-table').style.display = 'none';
+  document.getElementById('org-empty').style.display = 'none';
+  document.getElementById('org-loading').style.display = 'none';
+  document.getElementById('org-stats').textContent = `${DOCS.length} dokument(a) ukupno`;
+  document.getElementById('org-apply-btn').disabled = true;
+  document.getElementById('org-sel-info').textContent = '0 odabrano';
+  // Auto-run smart org
+  runOrganizeSmart();
+}
+function closeOrganize() { document.getElementById('org-overlay').classList.remove('open'); }
+
+function setOrgMode(id) {
+  ['org-btn-smart','org-btn-ai','org-btn-date','org-btn-cat'].forEach(b => {
+    document.getElementById(b).classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+}
+
+function runOrganizeSmart() {
+  setOrgMode('org-btn-smart');
+  const suggestions = [];
+  DOCS.forEach(doc => {
+    const guessedCat  = guessCatFromText(doc.ocr_text || '', doc.name);
+    const guessedName = cleanDocName(doc.name);
+    const catChanged  = guessedCat !== doc.cat && guessedCat !== 'ostalo';
+    const nameChanged = guessedName !== doc.name && guessedName.length > 3;
+    if(catChanged || nameChanged) {
+      suggestions.push({
+        docId:   doc.id,
+        oldName: doc.name,
+        newName: nameChanged ? guessedName : doc.name,
+        oldCat:  doc.cat,
+        newCat:  catChanged ? guessedCat : doc.cat,
+        type:    catChanged && nameChanged ? 'both' : catChanged ? 'recat' : 'rename',
+        selected: true
+      });
+    }
+  });
+  orgSuggestions = suggestions;
+  renderOrgTable();
+}
+
+function runOrganizeByDate() {
+  setOrgMode('org-btn-date');
+  const suggestions = [];
+  DOCS.forEach(doc => {
+    if(!doc.date) return;
+    const d = new Date(doc.date);
+    const yr = d.getFullYear();
+    const mo = d.toLocaleDateString('bs-BA', {month:'long'});
+    const prefix = `${yr} — ${mo.charAt(0).toUpperCase()+mo.slice(1)}`;
+    const baseName = doc.name.replace(/^\d{4}\s*[-—]\s*\w+\s*[-—]\s*/,'').trim();
+    const newName = `${prefix} — ${baseName}`;
+    if(newName !== doc.name) {
+      suggestions.push({ docId:doc.id, oldName:doc.name, newName, oldCat:doc.cat, newCat:doc.cat, type:'rename', selected:true });
+    }
+  });
+  orgSuggestions = suggestions;
+  renderOrgTable();
+}
+
+function runOrganizeByCat() {
+  setOrgMode('org-btn-cat');
+  const suggestions = [];
+  DOCS.filter(d => d.cat === 'ostalo').forEach(doc => {
+    const guessedCat = guessCatFromText(doc.ocr_text||'', doc.name);
+    if(guessedCat !== 'ostalo') {
+      suggestions.push({ docId:doc.id, oldName:doc.name, newName:doc.name, oldCat:doc.cat, newCat:guessedCat, type:'recat', selected:true });
+    }
+  });
+  orgSuggestions = suggestions;
+  renderOrgTable();
+}
+
+async function runOrganizeAI() {
+  setOrgMode('org-btn-ai');
+  if(!CONFIG.apiKey) { toast('Dodajte Anthropic API key u Podešavanja za AI organizaciju', 'error'); return; }
+  document.getElementById('org-table').style.display = 'none';
+  document.getElementById('org-empty').style.display = 'none';
+  document.getElementById('org-loading').style.display = 'flex';
+  document.getElementById('org-loading-txt').textContent = 'AI analizira sve dokumente...';
+
+  const catNames = CATS.map(c => c.id).join(', ');
+  const docList  = DOCS.slice(0,40).map(d =>
+    `ID:${d.id} | Naziv:"${d.name}" | Kat:${d.cat} | OCR:${(d.ocr_text||'').substring(0,120)}`
+  ).join('\n');
+
+  const prompt = `Analiziraj ove dokumente i predloži poboljšanja organizacije. Odgovori SAMO u JSON nizu, bez ikakvog teksta van JSON-a.
+
+Dostupne kategorije: ${catNames}
+
+Dokumenti:
+${docList}
+
+JSON format — niz objekata za SVAKI dokument koji treba promjenu (preskoči one koji su dobri):
+[{"id": broj, "newName": "novi naziv max 70 znakova", "newCat": "id_kategorije", "reason": "kratki razlog na bosanskom"}]
+
+Vraćaj SAMO dokumente koji zaista trebaju promjenu. Ako je naziv dobar, ostavi ga isti.`;
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:prompt}] })
+    });
+    const data = await r.json();
+    const raw  = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    const m    = raw.match(/\[[\s\S]*\]/);
+    if(!m) throw new Error('Parse');
+    const items = JSON.parse(m[0]);
+    orgSuggestions = items.map(item => {
+      const doc = DOCS.find(d => d.id === item.id);
+      if(!doc) return null;
+      const nameChanged = item.newName && item.newName !== doc.name;
+      const catChanged  = item.newCat  && item.newCat  !== doc.cat;
+      if(!nameChanged && !catChanged) return null;
+      return {
+        docId:    doc.id,
+        oldName:  doc.name,
+        newName:  nameChanged ? item.newName : doc.name,
+        oldCat:   doc.cat,
+        newCat:   catChanged  ? item.newCat  : doc.cat,
+        type:     nameChanged && catChanged ? 'both' : catChanged ? 'recat' : 'rename',
+        aiReason: item.reason || '',
+        selected: true,
+        isAI: true
+      };
+    }).filter(Boolean);
+  } catch(e) {
+    toast('AI organizacija nije uspjela. Pokušajte Pametnu organizaciju.', 'error');
+    orgSuggestions = [];
+  }
+  document.getElementById('org-loading').style.display = 'none';
+  renderOrgTable();
+}
+
+function cleanDocName(name) {
+  return name
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function renderOrgTable() {
+  const table  = document.getElementById('org-table');
+  const empty  = document.getElementById('org-empty');
+  const tbody  = document.getElementById('org-tbody');
+  document.getElementById('org-loading').style.display = 'none';
+
+  if(!orgSuggestions.length) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    document.getElementById('org-apply-btn').disabled = true;
+    document.getElementById('org-stats').textContent = 'Nema prijedloga.';
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  tbody.innerHTML = orgSuggestions.map((s, i) => {
+    const oldCat = getCat(s.oldCat);
+    const newCat = getCat(s.newCat);
+    const catChanged  = s.oldCat !== s.newCat;
+    const nameChanged = s.oldName !== s.newName;
+    const typeBadge = s.isAI
+      ? '<span class="org-badge ai">✦ AI</span>'
+      : s.type === 'both'   ? '<span class="org-badge rename">Naziv</span> <span class="org-badge recat">Kat.</span>'
+      : s.type === 'recat'  ? '<span class="org-badge recat">Kat.</span>'
+      : '<span class="org-badge rename">Naziv</span>';
+    return `<tr>
+      <td><input type="checkbox" class="org-check" data-idx="${i}" ${s.selected?'checked':''} onchange="orgToggleOne(${i},this.checked)"></td>
+      <td style="max-width:200px">
+        <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(s.oldName)}">${esc(s.oldName)}</div>
+        ${s.aiReason?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(s.aiReason)}</div>`:''}
+      </td>
+      <td style="max-width:220px">
+        ${nameChanged
+          ? `<div class="org-new" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px" title="${esc(s.newName)}">→ ${esc(s.newName)}</div>`
+          : `<span style="color:var(--text3);font-size:11px">bez promjene</span>`}
+      </td>
+      <td>
+        ${catChanged
+          ? `<span class="org-cat-tag" style="background:${oldCat.color}18;color:${oldCat.color}">${oldCat.emoji} ${esc(oldCat.name)}</span>
+             <span class="org-change-arrow">→</span>
+             <span class="org-cat-tag" style="background:${newCat.color}18;color:${newCat.color}">${newCat.emoji} ${esc(newCat.name)}</span>`
+          : `<span style="color:var(--text3);font-size:11px">bez promjene</span>`}
+      </td>
+      <td>${typeBadge}</td>
+    </tr>`;
+  }).join('');
+
+  updateOrgSelInfo();
+}
+
+function orgToggleOne(i, checked) {
+  orgSuggestions[i].selected = checked;
+  updateOrgSelInfo();
+}
+function orgToggleAll(checked) {
+  orgSuggestions.forEach(s => s.selected = checked);
+  document.querySelectorAll('.org-check[data-idx]').forEach(cb => cb.checked = checked);
+  updateOrgSelInfo();
+}
+function updateOrgSelInfo() {
+  const sel = orgSuggestions.filter(s => s.selected).length;
+  document.getElementById('org-sel-info').textContent = `${sel} odabrano`;
+  document.getElementById('org-stats').textContent    = `${orgSuggestions.length} prijedlog(a) — ${sel} odabrano`;
+  document.getElementById('org-apply-btn').disabled   = sel === 0;
+}
+
+function applyOrganize() {
+  const toApply = orgSuggestions.filter(s => s.selected);
+  if(!toApply.length) return;
+  toApply.forEach(s => {
+    const doc = DOCS.find(d => d.id === s.docId);
+    if(!doc) return;
+    if(s.oldName !== s.newName) doc.name = s.newName;
+    if(s.oldCat  !== s.newCat)  doc.cat  = s.newCat;
+  });
+  saveDocs();
+  renderCatList(); renderTable(DOCS); updateBadges(); buildExpiryAlert(); applyFilters();
+  toast(`✓ Primijenjeno ${toApply.length} promjena`, 'success');
+  closeOrganize();
+}
+
+// IMAGE COMPRESSION
+async function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1600; // max dimension px
+      let w=img.width, h=img.height;
+      if(w>MAX||h>MAX) { const r=Math.min(MAX/w,MAX/h); w=Math.round(w*r); h=Math.round(h*r); }
+      const canvas = document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      canvas.toBlob(blob => resolve(new File([blob], file.name, {type:'image/jpeg'})), 'image/jpeg', 0.82);
+    };
+    img.src = url;
+  });
+}
+
+async function processFile(file) {
+  closeOCRZone();
+  document.getElementById('ocr-result').classList.remove('visible');
+  document.getElementById('ocr-progress').classList.add('visible');
+  setOCRProg(0,'Učitavam datoteku...');
+  try {
+    if(file.type==='application/pdf') {
+      setOCRProg(30,'PDF — ekstrakcija teksta...');
+      const txt=await extractPDF(file);
+      setOCRProg(90,'Završavam...');
+      await finishOCR(txt, file.name);
+    } else {
+      // Compress first
+      setOCRProg(8,'Kompresiram sliku...');
+      const origKB=Math.round(file.size/1024);
+      const compressed=await compressImage(file);
+      const compKB=Math.round(compressed.size/1024);
+      setOCRProg(15,`Kompresija: ${origKB}KB → ${compKB}KB. Pokrećem OCR...`);
+      await runTesseract(compressed, origKB, compKB);
+    }
+  } catch(e) {
+    document.getElementById('ocr-progress').classList.remove('visible');
+    toast('OCR greška: '+e.message,'error');
+  }
+}
+
+async function runTesseract(file, origKB, compKB) {
+  const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {
+    logger: m => {
+      if(m.status==='recognizing text') setOCRProg(15+Math.round(m.progress*80), `Prepoznajem tekst... ${Math.round(m.progress*100)}%`);
+      else if(m.status==='loading language traineddata') setOCRProg(20,'Učitavam jezični model...');
+    }
+  });
+  const result = await worker.recognize(file);
+  await worker.terminate();
+  await finishOCR(result.data.text, file.name, origKB, compKB);
+}
+
+async function extractPDF(file) {
+  return new Promise(resolve => {
+    const r=new FileReader();
+    r.onload=e=>{
+      const bytes=new Uint8Array(e.target.result);
+      let txt='';
+      for(let i=0;i<bytes.length-1;i++){const c=bytes[i];if(c>=32&&c<127)txt+=String.fromCharCode(c);else txt+=' ';}
+      const readable=(txt.match(/[A-Za-zĀ-žА-я0-9\s.,;:!?-]{4,}/g)||[]);
+      resolve(readable.join(' ').replace(/\s+/g,' ').trim()||'Nije moguće ekstrahirati tekst iz PDF-a.');
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function setOCRProg(pct,lbl) {
+  document.getElementById('ocr-bar').style.width=pct+'%';
+  document.getElementById('ocr-bar-lbl').textContent=pct+'%';
+  document.getElementById('ocr-prog-lbl').textContent=lbl;
+}
+
+async function finishOCR(text, fname, origKB, compKB) {
+  document.getElementById('ocr-progress').classList.remove('visible');
+  const clean=text.trim()||(fname||'(Nema teksta)');
+  document.getElementById('ocr-text-out').textContent=clean;
+  document.getElementById('ocr-result').classList.add('visible');
+  pendingOCR={text:clean,filename:fname,origKB,compKB};
+
+  document.getElementById('ocr-ai-out').innerHTML=`<div class="ai-loading"><div class="spinner"></div><span>AI analizira prepoznati tekst...</span></div>`;
+  try {
+    const a=await aiAnalyze(clean);
+    pendingOCR.analysis=a;
+    document.getElementById('ocr-ai-out').innerHTML=`<strong style="display:block;margin-bottom:5px">🤖 AI analiza:</strong>${a.summary||'—'}`;
+  } catch(e) {
+    document.getElementById('ocr-ai-out').innerHTML=`<span style="color:var(--amber)">⚠️ AI analiza nije dostupna — dodajte Anthropic API key u podešavanja.</span>`;
+    pendingOCR.analysis={category:'ostalo',summary:'',suggested_name:fname.replace(/\.[^.]+$/,''),expire_hint:null,doc_date:null};
+  }
+  if(origKB&&compKB&&origKB>compKB) toast(`Slika komprimirana: ${origKB}KB → ${compKB}KB`,'info');
+}
+
+// ─── AI ──────────────────────────────────────────────────────────────────────
+async function aiAnalyze(text) {
+  if(!CONFIG.apiKey) throw new Error('Nema API key');
+  const catList = CATS.map(c => c.id).join('|');
+  const p=`Analiziraj ovaj poslovni dokument. Odgovori SAMO u JSON formatu, bez ikakvog teksta izvan JSON-a:
+
+Tekst:
+"""${text.substring(0,2000)}"""
+
+JSON format:
+{"category":"${catList}","suggested_name":"naziv max 60 znakova","summary":"2-3 rečenice analiza na bosanskom","expire_hint":"YYYY-MM-DD ili null","doc_date":"YYYY-MM-DD ili null"}`;
+
+  const r=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:p}]})
+  });
+  if(!r.ok) throw new Error(`API ${r.status}`);
+  const d=await r.json();
+  const raw=d.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+  const m=raw.match(/\{[\s\S]*\}/);
+  if(m) return JSON.parse(m[0]);
+  throw new Error('Parse error');
+}
+
+async function analyzeDoc(doc) {
+  const panel=document.getElementById('ai-panel');
+  panel.classList.add('visible');
+  document.getElementById('ai-toggle').classList.add('active');
+  aiVisible=true;
+  if(doc.ai_summary) { document.getElementById('ai-text').textContent=doc.ai_summary; return; }
+  document.getElementById('ai-text').innerHTML='<div class="ai-loading"><div class="spinner"></div><span>AI analizira...</span></div>';
+  if(!CONFIG.apiKey) { document.getElementById('ai-text').textContent='⚠️ Dodajte Anthropic API key u podešavanja.'; return; }
+  try {
+    const p=`Kratka analiza poslovnog dokumenta na bosanskom (2-3 rečenice, šta treba napraviti):\nNaziv: ${doc.name}\nKategorija: ${getCat(doc.cat).name}\nDatum: ${doc.date}\nIstječe: ${doc.expire||'nema'}\n${doc.ocr_text?'Tekst: '+doc.ocr_text.substring(0,500):''}`;
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:250,messages:[{role:'user',content:p}]})});
+    const d=await r.json();
+    const s=d.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    doc.ai_summary=s; saveDocs();
+    document.getElementById('ai-text').textContent=s;
+  } catch(e) { document.getElementById('ai-text').textContent='AI analiza nije dostupna.'; }
+}
+
+function useOCR() {
+  closeOCRResult();
+  const d=pendingOCR; if(!d) return;
+  const a=d.analysis||{};
+  document.getElementById('m-name').value=a.suggested_name||d.filename.replace(/\.[^.]+$/,'');
+  document.getElementById('m-cat').value=CATS.find(c=>c.id===a.category)?a.category:'ostalo';
+  document.getElementById('m-date').value=a.doc_date||new Date().toISOString().split('T')[0];
+  document.getElementById('m-expire').value=a.expire_hint||'';
+  document.getElementById('m-source').value='OCR skeniranje';
+  document.getElementById('m-ocr').value=d.text;
+  document.getElementById('m-notes').value='';
+  document.getElementById('m-id').value='';
+  document.getElementById('modal-title').textContent='Spremi skenirani dokument';
+  document.getElementById('ocr-prefill').classList.add('visible');
+  editingId=null;
+  document.getElementById('modal').classList.add('open');
+}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+function showModal() {
+  editingId=null;
+  document.getElementById('m-name').value='';
+  document.getElementById('m-cat').value=CATS[0]?.id||'ostalo';
+  document.getElementById('m-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('m-expire').value='';
+  document.getElementById('m-source').value='Ručno';
+  document.getElementById('m-notes').value='';
+  document.getElementById('m-id').value='';
+  document.getElementById('m-ocr').value='';
+  document.getElementById('modal-title').textContent='Dodaj dokument';
+  document.getElementById('ocr-prefill').classList.remove('visible');
+  document.getElementById('modal').classList.add('open');
+  setTimeout(()=>document.getElementById('m-name').focus(),80);
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+async function saveDoc() {
+  const name=document.getElementById('m-name').value.trim();
+  if(!name) { document.getElementById('m-name').style.borderColor='var(--red)'; document.getElementById('m-name').focus(); return; }
+  document.getElementById('m-name').style.borderColor='';
+  const expire=document.getElementById('m-expire').value;
+  let status='ok';
+  if(expire) { const d=(new Date(expire)-new Date())/86400000; status=d<0?'expire':d<30?'warn':'ok'; }
+  const doc={
+    id:editingId||Date.now(),
+    name,
+    cat:document.getElementById('m-cat').value,
+    date:document.getElementById('m-date').value||new Date().toISOString().split('T')[0],
+    expire,
+    source:document.getElementById('m-source').value,
+    notes:document.getElementById('m-notes').value.trim(),
+    ocr_text:document.getElementById('m-ocr').value,
+    status,
+    ai_summary:''
+  };
+  if(editingId) {
+    const i=DOCS.findIndex(d=>d.id===editingId);
+    if(i>-1){doc._sbid=DOCS[i]._sbid; DOCS[i]=doc;}
+    toast(`"${name}" ažuriran`,'success');
+  } else {
+    DOCS.unshift(doc);
+    toast(`"${name}" dodan`,'success');
+  }
+  saveDocs(); closeModal(); pendingOCR=null;
+  renderCatList(); renderTable(DOCS); updateBadges(); buildExpiryAlert(); applyFilters();
+  const saved=await saveToDB(doc);
+  if(saved?.id){ const i=DOCS.findIndex(d=>d.id===doc.id); if(i>-1) DOCS[i]._sbid=saved.id; saveDocs(); }
+}
+
+function editDoc(id) {
+  const doc=DOCS.find(d=>d.id===id); if(!doc) return;
+  editingId=id;
+  document.getElementById('m-name').value=doc.name;
+  document.getElementById('m-cat').value=doc.cat;
+  document.getElementById('m-date').value=doc.date;
+  document.getElementById('m-expire').value=doc.expire||'';
+  document.getElementById('m-source').value=doc.source||'Ručno';
+  document.getElementById('m-notes').value=doc.notes||'';
+  document.getElementById('m-ocr').value=doc.ocr_text||'';
+  document.getElementById('m-id').value=id;
+  document.getElementById('modal-title').textContent='Uredi dokument';
+  document.getElementById('ocr-prefill').classList.remove('visible');
+  document.getElementById('modal').classList.add('open');
+}
+
+async function delDoc(id) {
+  const doc=DOCS.find(d=>d.id===id);
+  if(!doc||!confirm(`Obrisati "${doc.name}"?`)) return;
+  const sbid=doc._sbid;
+  DOCS=DOCS.filter(d=>d.id!==id);
+  if(sbid) await deleteFromDB(sbid);
+  saveDocs(); renderCatList(); renderTable(DOCS); updateBadges(); buildExpiryAlert(); applyFilters();
+  toast('Dokument obrisan','info');
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderTable(docs) {
+  const tb=document.getElementById('doc-tbody');
+  if(!docs.length){ tb.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🗂️</div>Nema dokumenata u ovoj kategoriji.</div></td></tr>`; return; }
+  tb.innerHTML=docs.map(d=>{
+    const cat=getCat(d.cat);
+    const bg=cat.color+'18';
+    return `<tr onclick="selectDoc(${d.id})">
+      <td>
+        <div class="doc-cell">
+          <div class="doc-icon" style="background:${bg}">${cat.emoji}</div>
+          <div>
+            <div class="doc-name">${esc(d.name)}${d.ocr_text?'<span class="ocr-badge">OCR</span>':''}</div>
+            <div class="doc-meta">${esc(d.source||'')}${d.notes?' · '+esc(d.notes.substring(0,38)):''}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="tag" style="background:${cat.color}18;color:${cat.color}">${cat.emoji} ${esc(cat.name)}</span></td>
+      <td><span class="status-pill s-${d.status}"><span class="sdot"></span>${d.status==='ok'?'Uredno':d.status==='warn'?'Ističe':'Hitno!'}</span></td>
+      <td style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace">${fmtD(d.date)}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:${d.expire?(d.status==='expire'?'var(--red)':d.status==='warn'?'var(--amber)':'var(--text2)'):'var(--text3)'}">${d.expire?fmtD(d.expire):'—'}</td>
+      <td><div class="action-btns">
+        <button class="action-btn" onclick="event.stopPropagation();editDoc(${d.id})" title="Uredi">✎</button>
+        <button class="action-btn danger" onclick="event.stopPropagation();delDoc(${d.id})" title="Obriši">✕</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtD(s){ if(!s)return'—'; return new Date(s).toLocaleDateString('bs-BA',{day:'2-digit',month:'short',year:'numeric'}); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── FILTERS ─────────────────────────────────────────────────────────────────
+function filterTag(tag, el) {
+  activeTag=tag;
+  document.querySelectorAll('.cat-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+
+function filterCat(cat,el) {
+  document.querySelectorAll('.stat-card').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  const now=new Date(), soon=new Date(now.getTime()+30*24*3600*1000);
+  if(cat==='expire') filtered=DOCS.filter(d=>d.expire&&new Date(d.expire)<=soon);
+  else if(cat==='ovaj-mjesec') filtered=DOCS.filter(d=>{const dd=new Date(d.date);return dd.getMonth()===now.getMonth()&&dd.getFullYear()===now.getFullYear();});
+  else if(cat==='bez-taga') filtered=DOCS.filter(d=>d.cat==='ostalo');
+  else filtered=[...DOCS];
+  renderTable(filtered);
+  document.getElementById('page-info').textContent=`Prikazano ${filtered.length} od ${DOCS.length}`;
+}
+
+function applyFilters() {
+  const q=document.getElementById('search-box').value.toLowerCase();
+  filtered=DOCS.filter(d=>{
+    const mt=activeTag==='sve'||d.cat===activeTag;
+    const mq=!q||d.name.toLowerCase().includes(q)||(d.notes||'').toLowerCase().includes(q)||(d.ocr_text||'').toLowerCase().includes(q)||(getCat(d.cat).name.toLowerCase().includes(q));
+    return mt&&mq;
+  });
+  sortFiltered(); renderTable(filtered);
+  document.getElementById('page-info').textContent=`Prikazano ${filtered.length} od ${DOCS.length}`;
+}
+
+function sortBy(col) {
+  ['datum','naziv','kat'].forEach(c=>document.getElementById('sort-'+c).classList.remove('active'));
+  document.getElementById('sort-'+col).classList.add('active');
+  if(sortState.col===col) sortState.asc=!sortState.asc;
+  else{sortState.col=col;sortState.asc=true;}
+  sortFiltered(); renderTable(filtered);
+}
+
+function sortFiltered() {
+  filtered.sort((a,b)=>{
+    let va,vb;
+    if(sortState.col==='datum'){va=a.date;vb=b.date;}
+    else if(sortState.col==='naziv'){va=a.name.toLowerCase();vb=b.name.toLowerCase();}
+    else{va=getCat(a.cat).name;vb=getCat(b.cat).name;}
+    return sortState.asc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+  });
+}
+
+// ─── AI TOGGLE ───────────────────────────────────────────────────────────────
+function toggleAI() {
+  aiVisible=!aiVisible;
+  document.getElementById('ai-panel').classList.toggle('visible',aiVisible);
+  document.getElementById('ai-toggle').classList.toggle('active',aiVisible);
+  if(!aiVisible) return;
+  document.getElementById('ai-text').textContent='Kliknite na dokument za AI analizu.';
+}
+function selectDoc(id) { const doc=DOCS.find(d=>d.id===id); if(doc) analyzeDoc(doc); }
+
+// ─── BADGES & ALERTS ──────────────────────────────────────────────────────────
+function updateBadges() {
+  const now=new Date(), soon=new Date(now.getTime()+30*24*3600*1000);
+  document.getElementById('s-total').textContent=DOCS.length;
+  document.getElementById('b-sve').textContent=DOCS.length;
+  CATS.forEach(c=>{ const el=document.getElementById('b-'+c.id); if(el) el.textContent=DOCS.filter(d=>d.cat===c.id).length; });
+  document.getElementById('s-expire').textContent=DOCS.filter(d=>d.expire&&new Date(d.expire)<=soon).length;
+  const mo=DOCS.filter(d=>{const dd=new Date(d.date);return dd.getMonth()===now.getMonth()&&dd.getFullYear()===now.getFullYear();}).length;
+  document.getElementById('s-month').textContent=mo;
+  document.getElementById('s-uncat').textContent=DOCS.filter(d=>d.cat==='ostalo').length;
+  document.getElementById('page-info').textContent=`Prikazano ${filtered.length} od ${DOCS.length}`;
+}
+
+function buildExpiryAlert() {
+  const now=new Date(), soon=new Date(now.getTime()+30*24*3600*1000);
+  const exp=DOCS.filter(d=>d.expire&&new Date(d.expire)<=soon).sort((a,b)=>a.expire>b.expire?1:-1);
+  const alert=document.getElementById('expiry-alert');
+  if(!exp.length){alert.style.display='none';return;}
+  alert.style.display='flex';
+  document.getElementById('expiry-text').textContent=`${exp.length} dokument(a) istic(u) uskoro: ${exp.slice(0,3).map(d=>d.name.substring(0,30)+' ('+fmtD(d.expire)+')').join(', ')}`;
+}
+
+// ─── EXPORT CSV ──────────────────────────────────────────────────────────────
+function exportCSV() {
+  const header='ID,Naziv,Kategorija,Status,Datum,Istice,Izvor,Biljeska\n';
+  const rows=DOCS.map(d=>[d.id,`"${d.name.replace(/"/g,'""')}"`,getCat(d.cat).name,d.status,d.date,d.expire||'',d.source||'',`"${(d.notes||'').replace(/"/g,'""')}"`].join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+header+rows],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='dokuvod_export.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV izvezen','success');
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+function toast(msg,type='info') {
+  const icons={success:'✓',error:'✕',info:'ℹ'};
+  const t=document.createElement('div'); t.className=`toast ${type}`;
+  t.innerHTML=`<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>{t.style.cssText='opacity:0;transition:opacity .3s';setTimeout(()=>t.remove(),300);},3500);
+}
+</script>
+</body>
+</html>
