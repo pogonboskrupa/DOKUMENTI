@@ -3210,7 +3210,7 @@ function renderShareActivity(docId) {
 let viewerDocId = null;
 let viewerBlobUrl = null;
 
-function openViewer(docId) {
+async function openViewer(docId) {
   const doc = DOCS.find(d => d.id === docId);
   if(!doc) return;
   viewerDocId = docId;
@@ -3220,19 +3220,34 @@ function openViewer(docId) {
   document.getElementById('viewer-icon').textContent = cat.emoji;
   document.getElementById('viewer-icon').style.background = cat.color + '18';
   document.getElementById('viewer-name').textContent = doc.name;
+  document.getElementById('viewer-meta').textContent = doc.file_type || cat.name;
+  document.getElementById('viewer-size-info').textContent = '';
+  document.getElementById('viewer-page-info').textContent = '';
+  document.getElementById('viewer-download-btn').style.display = 'none';
+
+  // Open overlay immediately with loading indicator
+  const body = document.getElementById('viewer-body');
+  body.innerHTML = '<div class="viewer-html" style="display:flex;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3)"><div class="spinner-blue"></div> Učitavam dokument...</div>';
+  document.getElementById('viewer-overlay').classList.add('open');
+
+  // Load file_data from IDB on-demand if not yet hydrated
+  if(!doc.file_data) {
+    try {
+      const stored = await idbGet('file_' + docId);
+      if(stored) {
+        doc.file_data = stored.data;
+        doc.file_type = stored.type || doc.file_type || '';
+      }
+    } catch(e) {}
+  }
+
   const sizeKB = doc.file_data ? Math.round(doc.file_data.length * 0.75 / 1024) : 0;
   document.getElementById('viewer-meta').textContent =
     (doc.file_type || cat.name) + (sizeKB ? ' · ' + (sizeKB > 1024 ? (sizeKB/1024).toFixed(1)+'MB' : sizeKB+'KB') : '');
   document.getElementById('viewer-size-info').textContent = sizeKB ? sizeKB + ' KB' : '';
-  document.getElementById('viewer-page-info').textContent = '';
-
-  // Show download button only if file is stored
   document.getElementById('viewer-download-btn').style.display = doc.file_data ? 'flex' : 'none';
 
-  // Render content (works with or without file_data)
   renderViewerContent(doc);
-
-  document.getElementById('viewer-overlay').classList.add('open');
 }
 
 function closeViewer() {
