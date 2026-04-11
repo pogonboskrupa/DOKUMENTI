@@ -1040,13 +1040,20 @@
       <div class="modal-lbl">Bilješka</div>
       <input class="modal-input" type="text" id="m-notes" placeholder="Kratka napomena...">
     </div>
+    <div id="m-forward-row" style="display:none;flex-direction:column;gap:4px;margin-bottom:2px">
+      <div style="height:1px;background:var(--border);margin:6px 0"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">📤 Proslijedi radniku</div>
+      <select class="modal-input" id="m-forward-to" style="border-color:var(--blue)">
+        <option value="">— Odaberite radnika —</option>
+      </select>
+    </div>
     <input type="hidden" id="m-id">
     <input type="hidden" id="m-ocr">
     <input type="hidden" id="m-filedata">
     <input type="hidden" id="m-filetype">
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">Otkaži</button>
-      <button class="btn-save" onclick="saveDoc()">Spremi</button>
+      <button class="btn-save" onclick="saveDoc()">Proslijedi →</button>
     </div>
   </div>
 </div>
@@ -1180,9 +1187,10 @@ create policy "Javni pristup" on dokumenti
 <script>
 // ─── AUTH SYSTEM ─────────────────────────────────────────────────────────────
 const DEFAULT_USERS = [
-  { id:'amra',  username:'Amra Ismailovski', pin:'5555' },
-  { id:'nedim', username:'Nedim Ćehić',      pin:'7777' },
-  { id:'izet',  username:'Izet Velagić',     pin:'4444' },
+  { id:'amra',   username:'Amra Ismailovski', pin:'5555' },
+  { id:'nedim',  username:'Nedim Ćehić',      pin:'7777' },
+  { id:'izet',   username:'Izet Velagić',     pin:'4444' },
+  { id:'amira',  username:'Amira',            pin:'1111', role:'protokol' },
 ];
 
 function loadUsers() {
@@ -2713,19 +2721,37 @@ function useOCR() {
   document.getElementById('m-filetype').value = d.fileType || '';
   document.getElementById('modal-title').textContent='Spremi skenirani dokument';
   document.getElementById('ocr-prefill').classList.add('visible');
+  _setupForwardRow(null);
   editingId=null;
   closeOCRResult(); // now safe to null pendingOCR
   document.getElementById('modal').classList.add('open');
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
+function _setupForwardRow(preselect) {
+  const row = document.getElementById('m-forward-row');
+  const btn = document.querySelector('#modal .btn-save');
+  if(currentUser?.role === 'protokol') {
+    const sel = document.getElementById('m-forward-to');
+    sel.innerHTML = '<option value="">— Odaberite radnika —</option>' +
+      USERS.filter(u => u.id !== currentUser.id)
+           .map(u => `<option value="${esc(u.id)}" ${preselect===u.id?'selected':''}>${esc(u.username)}</option>`)
+           .join('');
+    row.style.display = 'flex';
+    if(btn) btn.textContent = 'Proslijedi →';
+  } else {
+    row.style.display = 'none';
+    if(btn) btn.textContent = 'Spremi';
+  }
+}
+
 function showModal() {
   editingId=null;
   document.getElementById('m-name').value='';
   document.getElementById('m-cat').value=CATS[0]?.id||'ostalo';
   document.getElementById('m-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('m-expire').value='';
-  document.getElementById('m-source').value='Ručno';
+  document.getElementById('m-source').value='Protokol';
   document.getElementById('m-notes').value='';
   document.getElementById('m-id').value='';
   document.getElementById('m-ocr').value='';
@@ -2733,6 +2759,7 @@ function showModal() {
   document.getElementById('m-filetype').value='';
   document.getElementById('modal-title').textContent='Dodaj dokument';
   document.getElementById('ocr-prefill').classList.remove('visible');
+  _setupForwardRow(null);
   document.getElementById('modal').classList.add('open');
   setTimeout(()=>document.getElementById('m-name').focus(),80);
 }
@@ -2769,6 +2796,12 @@ async function saveDoc() {
     file_type: fileType,
     task: existingDoc?.task || null,
   };
+  // Protokol: automatski proslijedi odabranom radniku
+  if(currentUser?.role === 'protokol') {
+    const fwd = document.getElementById('m-forward-to')?.value;
+    if(fwd && !doc.sharedWith.includes(fwd)) doc.sharedWith = [...doc.sharedWith, fwd];
+    if(!doc.source || doc.source === 'Ručno') doc.source = 'Protokol';
+  }
   if(editingId) {
     const i=DOCS.findIndex(d=>d.id===editingId);
     if(i>-1){doc._sbid=DOCS[i]._sbid; DOCS[i]=doc;}
@@ -2801,6 +2834,8 @@ function editDoc(id) {
   document.getElementById('m-id').value=id;
   document.getElementById('modal-title').textContent='Uredi dokument';
   document.getElementById('ocr-prefill').classList.remove('visible');
+  const preselect = doc.sharedWith?.find(id => id !== doc.owner) || null;
+  _setupForwardRow(preselect);
   document.getElementById('modal').classList.add('open');
 }
 
