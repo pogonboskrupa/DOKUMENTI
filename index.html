@@ -501,6 +501,10 @@
       <div class="login-lbl">Šifra</div>
       <input class="login-input" type="password" id="login-pass" placeholder="Unesite šifru..." autocomplete="current-password">
     </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="login-remember" style="width:15px;height:15px;accent-color:var(--blue);cursor:pointer">
+      <label for="login-remember" style="font-size:13px;color:var(--text2);cursor:pointer;user-select:none">Zapamti me</label>
+    </div>
     <button class="login-btn" onclick="doLogin()">Prijava →</button>
     <div style="text-align:center;margin-top:12px">
       <button onclick="resetAndReload()" style="background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline">
@@ -1169,7 +1173,12 @@ function doLogin() {
   }
 
   currentUser = user;
-  try { sessionStorage.setItem('dokuvod_uid', user.id); } catch(e){}
+  const remember = document.getElementById('login-remember').checked;
+  try {
+    sessionStorage.setItem('dokuvod_uid', user.id);
+    if(remember) { localStorage.setItem('dokuvod_remember_uid', user.id); }
+    else { localStorage.removeItem('dokuvod_remember_uid'); }
+  } catch(e){}
 
   // Fade out login screen
   const ls = document.getElementById('login-screen');
@@ -1198,7 +1207,7 @@ function resetAndReload() {
 
 function doLogout() {
   currentUser = null;
-  try { sessionStorage.removeItem('dokuvod_uid'); } catch(e){}
+  try { sessionStorage.removeItem('dokuvod_uid'); localStorage.removeItem('dokuvod_remember_uid'); } catch(e){}
   document.getElementById('user-chip').classList.remove('open');
 
   // Reset login form
@@ -1418,10 +1427,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Login screen starts display:none (set in HTML). Show it only if no session.
   const loginScreen = document.getElementById('login-screen');
   try {
-    const uid = sessionStorage.getItem('dokuvod_uid');
+    const uid = sessionStorage.getItem('dokuvod_uid') || localStorage.getItem('dokuvod_remember_uid');
     const u   = uid ? USERS.find(x => x.id === uid) : null;
     if(u) {
       currentUser = u;
+      if(uid) sessionStorage.setItem('dokuvod_uid', uid);
       updateUserChip();
       // keep login-screen hidden (already display:none)
     } else {
