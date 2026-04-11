@@ -437,12 +437,36 @@
   .cred-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
 
   /* ── DOCUMENT VIEWER ──────────────────────────────────────────────────────── */
-  .viewer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:flex-start;justify-content:center;backdrop-filter:blur(3px);padding:16px;overflow:hidden}
+  .viewer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:flex-start;justify-content:center;backdrop-filter:blur(3px);padding:20px;overflow:hidden}
   .viewer-overlay.open{display:flex}
-  .viewer-modal{background:var(--surface);border-radius:14px;width:900px;max-width:98vw;height:calc(100vh - 32px);box-shadow:0 24px 60px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden}
+  .viewer-modal{background:var(--surface);border-radius:14px;width:min(960px,calc(100vw - 40px));height:calc(100vh - 40px);box-shadow:0 24px 60px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
+  @media(max-width:900px){
+    .stats-row{grid-template-columns:repeat(2,1fr)}
+    .main-grid{grid-template-columns:1fr}
+    .sidebar{position:static;display:none}
+    .viewer-overlay{padding:12px}
+    .viewer-modal{width:calc(100vw - 24px);height:calc(100vh - 24px)}
+    .upload-methods{grid-template-columns:repeat(2,1fr)!important}
+    .upload-method{border-right:none;border-bottom:1px solid var(--border)}
+    .upload-method:nth-child(odd){border-right:1px solid var(--border)}
+    .upload-method:last-child,.upload-method:nth-last-child(-n+2):nth-child(odd){border-bottom:none}
+  }
   @media(max-width:600px){
+    .app{padding:8px}
+    .topbar{padding:0 12px}
+    .logo-badge,.conn-status{display:none}
+    .stats-row{grid-template-columns:repeat(2,1fr);gap:6px}
+    .stat-card{padding:10px 12px}
+    .content-area{padding:10px}
     .viewer-overlay{padding:0}
     .viewer-modal{width:100vw;max-width:100vw;height:100vh;height:100dvh;border-radius:0;box-shadow:none}
+    .viewer-hdr{padding:10px 12px}
+    .viewer-hdr-name{font-size:13px}
+    .col-cat,.col-date,.col-expire{display:none}
+    .doc-table th:last-child,.doc-table td:last-child{padding-right:6px}
   }
   .viewer-hdr{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
   .viewer-hdr-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
@@ -832,19 +856,21 @@
         <button class="filter-btn active" onclick="sortBy('kat')" id="sort-kat">Kategorija</button>
       </div>
 
+      <div class="table-wrap">
       <table class="doc-table">
         <thead>
           <tr>
             <th>Dokument</th>
-            <th>Kategorija</th>
-            <th>Status</th>
-            <th>Datum</th>
-            <th>Ističe</th>
+            <th class="col-cat">Kategorija</th>
+            <th class="col-status">Status</th>
+            <th class="col-date">Datum</th>
+            <th class="col-expire">Ističe</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="doc-tbody"></tbody>
       </table>
+      </div>
 
       <div class="pagination">
         <span id="page-info">—</span>
@@ -2598,10 +2624,10 @@ function renderTable(docs, highlightQ) {
           </div>
         </div>
       </td>
-      <td><span class="tag" style="background:${cat.color}18;color:${cat.color}">${cat.emoji} ${esc(cat.name)}</span></td>
-      <td><span class="status-pill s-${d.status}"><span class="sdot"></span>${d.status==='ok'?'Uredno':d.status==='warn'?'Ističe':'Hitno!'}</span></td>
-      <td style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace">${fmtD(d.date)}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:${d.expire?(d.status==='expire'?'var(--red)':d.status==='warn'?'var(--amber)':'var(--text2)'):'var(--text3)'}">${d.expire?fmtD(d.expire):'—'}</td>
+      <td class="col-cat"><span class="tag" style="background:${cat.color}18;color:${cat.color}">${cat.emoji} ${esc(cat.name)}</span></td>
+      <td class="col-status"><span class="status-pill s-${d.status}"><span class="sdot"></span>${d.status==='ok'?'Uredno':d.status==='warn'?'Ističe':'Hitno!'}</span></td>
+      <td class="col-date" style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace">${fmtD(d.date)}</td>
+      <td class="col-expire" style="font-size:12px;font-family:'DM Mono',monospace;color:${d.expire?(d.status==='expire'?'var(--red)':d.status==='warn'?'var(--amber)':'var(--text2)'):'var(--text3)'}">${d.expire?fmtD(d.expire):'—'}</td>
       <td><div class="action-btns">
         <button class="action-btn open-btn" onclick="event.stopPropagation();openViewer(${d.id})" title="${d.file_data ? 'Otvori dokument' : 'Pregled dokumenta'}">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 5h5M4 7.5h5M4 10h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M11 9l2 2-2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
