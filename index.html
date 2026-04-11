@@ -502,6 +502,29 @@
   /* Open button in table */
   .action-btn.open-btn:hover{color:var(--green);background:var(--green-l)}
   .file-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 5px;background:var(--teal-l);color:var(--teal);border-radius:3px;margin-left:5px;font-weight:700}
+
+  /* ── TASK BADGES & MODAL ──────────────────────────────────────────────────── */
+  .task-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:2px 6px;border-radius:3px;margin-top:3px;font-weight:700;cursor:pointer;white-space:nowrap;border:none;font-family:'DM Sans',sans-serif;transition:opacity .15s}
+  .task-badge.t-zadatak{background:#FFF3CD;color:#856404}
+  .task-badge.t-odgovor{background:#CCE5FF;color:#004085}
+  .task-badge.t-done{background:var(--green-l);color:var(--green)}
+  .task-done-btn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;flex-shrink:0;transition:all .15s;font-size:12px;padding:0}
+  .task-done-btn.done{border-color:var(--green);background:var(--green);color:white}
+  .task-done-btn:hover:not(.done){border-color:var(--green);color:var(--green);background:var(--green-l)}
+  .task-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(2px);padding:20px}
+  .task-overlay.open{display:flex}
+  .task-modal{background:var(--surface);border-radius:14px;width:380px;max-width:96vw;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:26px}
+  .task-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:3px}
+  .task-sub{font-size:12px;color:var(--text3);margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .task-type-row{display:flex;gap:8px;margin-bottom:18px}
+  .task-type-btn{flex:1;padding:11px 8px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;background:var(--surface2);color:var(--text2);transition:all .15s;text-align:center;line-height:1.4}
+  .task-type-btn.active{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
+  .task-lbl{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+  .task-select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--surface2);font-family:'DM Sans',sans-serif;margin-bottom:18px;box-sizing:border-box}
+  .task-select:focus{outline:none;border-color:var(--blue)}
+  .task-footer{display:flex;gap:8px;align-items:center}
+  .task-remove-btn{background:none;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;padding:7px 12px;transition:all .15s;margin-right:auto}
+  .task-remove-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-l)}
 </style>
 </head>
 <body>
@@ -2311,14 +2334,35 @@ async function runTesseract(file, origKB, compKB) {
 }
 
 async function extractPDF(file) {
+  // Primary: PDF.js text layer (accurate, handles encoding/fonts)
+  if(await _loadPDFJS()) {
+    try {
+      const ab = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
+      const parts = [];
+      for(let p = 1; p <= pdf.numPages; p++) {
+        const page    = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const txt     = content.items.map(i => i.str).join(' ').replace(/\s+/g,' ').trim();
+        if(txt) parts.push(`[Str. ${p}]\n${txt}`);
+      }
+      const result = parts.join('\n\n').trim();
+      if(result.length > 30) return result.substring(0, 20000);
+    } catch(e) { console.warn('PDF.js extraction failed, fallback', e); }
+  }
+  // Fallback: raw byte scan (works on some older PDFs)
   return new Promise(resolve => {
-    const r=new FileReader();
-    r.onload=e=>{
-      const bytes=new Uint8Array(e.target.result);
-      let txt='';
-      for(let i=0;i<bytes.length-1;i++){const c=bytes[i];if(c>=32&&c<127)txt+=String.fromCharCode(c);else txt+=' ';}
-      const readable=(txt.match(/[A-Za-zĀ-žА-я0-9\s.,;:!?-]{4,}/g)||[]);
-      resolve(readable.join(' ').replace(/\s+/g,' ').trim()||'Nije moguće ekstrahirati tekst iz PDF-a.');
+    const r = new FileReader();
+    r.onload = e => {
+      const bytes = new Uint8Array(e.target.result);
+      let txt = '';
+      for(let i = 0; i < bytes.length-1; i++) {
+        const c = bytes[i];
+        if(c >= 32 && c < 127) txt += String.fromCharCode(c);
+        else txt += ' ';
+      }
+      const readable = (txt.match(/[A-Za-zĀ-žА-я0-9\s.,;:!?-]{4,}/g) || []);
+      resolve(readable.join(' ').replace(/\s+/g,' ').trim() || 'Nije moguće ekstrahirati tekst iz PDF-a.');
     };
     r.readAsArrayBuffer(file);
   });
@@ -2528,8 +2572,9 @@ async function saveDoc() {
     ai_summary:'',
     owner: existingDoc?.owner || (currentUser ? currentUser.id : null),
     sharedWith: existingDoc?.sharedWith || [],
-    file_data: fileData,   // base64 data URL of original file
-    file_type: fileType,   // MIME type
+    file_data: fileData,
+    file_type: fileType,
+    task: existingDoc?.task || null,
   };
   if(editingId) {
     const i=DOCS.findIndex(d=>d.id===editingId);
@@ -2617,6 +2662,17 @@ function renderTable(docs, highlightQ) {
       }
     }
 
+    const tk = d.task;
+    const taskBadge = tk ? (tk.resolved
+      ? `<button class="task-badge t-done" onclick="event.stopPropagation();openTaskModal(${d.id})" title="Zadatak riješen — klikni za uređivanje">✓ ${tk.type==='odgovor'?'Odgovoreno':'Riješeno'}</button>`
+      : `<button class="task-badge ${tk.type==='odgovor'?'t-odgovor':'t-zadatak'}" onclick="event.stopPropagation();openTaskModal(${d.id})" title="Klikni za uređivanje zadatka">${tk.type==='odgovor'?'↩ Odgovor potreban':'📋 Zadatak'}</button>`)
+      : '';
+    const doneBtn = tk && !tk.resolved
+      ? `<button class="action-btn task-done-btn" onclick="event.stopPropagation();toggleTaskDone(${d.id},event)" title="Označi kao riješeno">✓</button>`
+      : tk && tk.resolved
+      ? `<button class="action-btn task-done-btn done" onclick="event.stopPropagation();toggleTaskDone(${d.id},event)" title="Poništi riješeno">✓</button>`
+      : '';
+
     return `<tr onclick="openViewer(${d.id})" style="cursor:pointer">
       <td>
         <div class="doc-cell">
@@ -2624,6 +2680,7 @@ function renderTable(docs, highlightQ) {
           <div>
             <div class="doc-name">${dispName}${d.ocr_text?'<span class="ocr-badge">OCR</span>':''}${d.file_data?'<span class="file-badge">📎</span>':''}${sharedBadge}</div>
             <div class="doc-meta">${esc(d.source||'')}${dispMeta?' · '+dispMeta:''}</div>
+            ${taskBadge}
           </div>
         </div>
       </td>
@@ -2632,8 +2689,12 @@ function renderTable(docs, highlightQ) {
       <td class="col-date" style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace">${fmtD(d.date)}</td>
       <td class="col-expire" style="font-size:12px;font-family:'DM Mono',monospace;color:${d.expire?(d.status==='expire'?'var(--red)':d.status==='warn'?'var(--amber)':'var(--text2)'):'var(--text3)'}">${d.expire?fmtD(d.expire):'—'}</td>
       <td><div class="action-btns">
+        ${doneBtn}
         <button class="action-btn open-btn" onclick="event.stopPropagation();openViewer(${d.id})" title="${d.file_data ? 'Otvori dokument' : 'Pregled dokumenta'}">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 5h5M4 7.5h5M4 10h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M11 9l2 2-2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="action-btn" onclick="event.stopPropagation();openTaskModal(${d.id})" title="Dodijeli zadatak">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 5.5h6M3.5 7.5h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="11" cy="11" r="2.5" fill="${tk?'var(--blue)':'none'}" stroke="${tk?'var(--blue)':'currentColor'}" stroke-width="1.1"/>${tk?'<path d="M10 11l.7.7 1.3-1.3" stroke="white" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>':''}</svg>
         </button>
         <button class="action-btn share-btn" onclick="event.stopPropagation();openShare(${d.id})" title="Dijeli">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="4" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/><circle cx="10" cy="3" r="2" stroke="currentColor" stroke-width="1.2"/><circle cx="10" cy="11" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M5.8 6.1L8.3 4M5.8 7.9l2.5 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -2953,6 +3014,90 @@ function ftOpenDoc(id) {
   }, 200);
 }
 
+
+// ─── TASK MANAGEMENT ─────────────────────────────────────────────────────────
+let _taskDocId = null;
+let _taskType  = 'zadatak';
+
+function openTaskModal(docId) {
+  const doc = DOCS.find(d => d.id === docId);
+  if(!doc) return;
+  _taskDocId = docId;
+  _taskType  = doc.task?.type || 'zadatak';
+
+  document.getElementById('task-doc-name').textContent = doc.name;
+  selectTaskType(_taskType);
+
+  // Populate assignee dropdown
+  const sel = document.getElementById('task-assignee');
+  sel.innerHTML = '<option value="">— Nije dodijeljeno —</option>' +
+    USERS.map(u => `<option value="${esc(u.id)}" ${doc.task?.assignee === u.id ? 'selected' : ''}>${esc(u.username)}</option>`).join('');
+
+  // Show resolved info if already resolved
+  const resolvedRow = document.getElementById('task-resolved-row');
+  if(doc.task?.resolved) {
+    const by = doc.task.resolvedBy ? USERS.find(u => u.id === doc.task.resolvedBy) : null;
+    const at = doc.task.resolvedAt ? new Date(doc.task.resolvedAt).toLocaleDateString('bs-BA') : '';
+    document.getElementById('task-resolved-info').textContent =
+      `Riješeno${by ? ' od ' + by.username.split(' ')[0] : ''}${at ? ' · ' + at : ''}`;
+    resolvedRow.style.display = 'flex';
+  } else {
+    resolvedRow.style.display = 'none';
+  }
+
+  document.getElementById('task-remove-btn').style.display = doc.task ? 'block' : 'none';
+  document.getElementById('task-overlay').classList.add('open');
+}
+
+function closeTaskModal() {
+  document.getElementById('task-overlay').classList.remove('open');
+  _taskDocId = null;
+}
+
+function selectTaskType(type) {
+  _taskType = type;
+  document.getElementById('task-type-zadatak').classList.toggle('active', type === 'zadatak');
+  document.getElementById('task-type-odgovor').classList.toggle('active', type === 'odgovor');
+}
+
+function saveTask() {
+  const doc = DOCS.find(d => d.id === _taskDocId);
+  if(!doc) return;
+  doc.task = {
+    type:       _taskType,
+    assignee:   document.getElementById('task-assignee').value || null,
+    resolved:   doc.task?.resolved || false,
+    resolvedAt: doc.task?.resolvedAt || null,
+    resolvedBy: doc.task?.resolvedBy || null,
+  };
+  saveDocs();
+  renderTable(getVisibleDocs());
+  closeTaskModal();
+  const label = _taskType === 'odgovor' ? 'Odgovor potreban' : 'Radni zadatak';
+  toast(`Zadatak postavljen: ${label}`, 'success');
+}
+
+function removeTask() {
+  const doc = DOCS.find(d => d.id === _taskDocId);
+  if(!doc) return;
+  doc.task = null;
+  saveDocs();
+  renderTable(getVisibleDocs());
+  closeTaskModal();
+  toast('Zadatak uklonjen', 'info');
+}
+
+function toggleTaskDone(docId, ev) {
+  if(ev) ev.stopPropagation();
+  const doc = DOCS.find(d => d.id === docId);
+  if(!doc || !doc.task) return;
+  doc.task.resolved   = !doc.task.resolved;
+  doc.task.resolvedAt = doc.task.resolved ? new Date().toISOString() : null;
+  doc.task.resolvedBy = doc.task.resolved ? (currentUser?.id || null) : null;
+  saveDocs();
+  renderTable(getVisibleDocs());
+  toast(doc.task.resolved ? '✓ Označeno kao riješeno' : 'Vraćeno na neriješeno', doc.task.resolved ? 'success' : 'info');
+}
 
 // ─── SHARE / DIJELI ──────────────────────────────────────────────────────────
 let shareDocId = null;  // doc being shared
@@ -3548,6 +3693,28 @@ async function renderViewerContent(doc) {
 
 </script>
 
+<!-- TASK MODAL -->
+<div class="task-overlay" id="task-overlay" onclick="if(event.target===this)closeTaskModal()">
+  <div class="task-modal">
+    <div class="task-title">📋 Dodijeli zadatak</div>
+    <div class="task-sub" id="task-doc-name">—</div>
+    <div class="task-type-row">
+      <button class="task-type-btn active" id="task-type-zadatak" onclick="selectTaskType('zadatak')">📋 Radni zadatak</button>
+      <button class="task-type-btn" id="task-type-odgovor" onclick="selectTaskType('odgovor')">↩️ Odgovor potreban</button>
+    </div>
+    <div class="task-lbl">Dodijeli radniku</div>
+    <select class="task-select" id="task-assignee"></select>
+    <div id="task-resolved-row" style="display:none;margin-bottom:16px;padding:10px 12px;background:var(--green-l);border:1px solid #9BD164;border-radius:var(--rs);font-size:12px;color:var(--green);display:flex;align-items:center;gap:8px">
+      <span>✓</span><span id="task-resolved-info"></span>
+    </div>
+    <div class="task-footer">
+      <button class="task-remove-btn" id="task-remove-btn" onclick="removeTask()" style="display:none">Ukloni zadatak</button>
+      <button class="btn-cancel" onclick="closeTaskModal()">Odustani</button>
+      <button class="btn-save" onclick="saveTask()">Spremi</button>
+    </div>
+  </div>
+</div>
+
 <!-- DOCUMENT VIEWER MODAL -->
 <div class="viewer-overlay" id="viewer-overlay" onclick="if(event.target===this)closeViewer()">
   <div class="viewer-modal">
@@ -3558,6 +3725,10 @@ async function renderViewerContent(doc) {
         <div class="viewer-hdr-meta" id="viewer-meta">—</div>
       </div>
       <div class="viewer-hdr-btns">
+        <button class="viewer-btn" id="viewer-task-btn" onclick="openTaskModal(viewerDocId)" title="Dodijeli zadatak">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 5.5h6M3.5 7.5h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="11" cy="11" r="2.5" stroke="currentColor" stroke-width="1.1"/><path d="M10 11l.7.7 1.3-1.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Zadatak
+        </button>
         <button class="viewer-btn primary" id="viewer-download-btn" onclick="viewerDownload()" style="display:none">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 6.5L7 9l2.5-2.5" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="white" stroke-width="1.2" stroke-linecap="round"/></svg>
           Preuzmi
