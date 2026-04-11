@@ -32,6 +32,9 @@
   .logo-icon{width:30px;height:30px;background:var(--blue);border-radius:7px;display:flex;align-items:center;justify-content:center}
   .logo-badge{font-size:10px;padding:2px 7px;background:var(--green-l);color:var(--green);border-radius:20px;font-weight:600}
   .topbar-right{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+  .topbar-upload-btn{display:flex;align-items:center;gap:6px;padding:7px 13px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--rs);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+  .topbar-upload-btn:hover{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
+  .topbar-upload-btn svg{flex-shrink:0}
   .conn-status{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'DM Mono',monospace;padding:4px 9px;border-radius:20px;cursor:pointer;transition:all .15s}
   .conn-status.connected{background:var(--green-l);color:var(--green)}
   .conn-status.disconnected{background:var(--amber-l);color:var(--amber)}
@@ -590,7 +593,7 @@
       <span class="conn-dot"></span>
       <span id="sb-status-txt">Supabase: nije spojeno</span>
     </div>
-    <button class="filter-btn" style="display:flex;align-items:center;gap:5px" onclick="showUploadPanel()">
+    <button class="topbar-upload-btn" onclick="showUploadPanel()">
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 4.5L7 2l2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       Učitaj
     </button>
