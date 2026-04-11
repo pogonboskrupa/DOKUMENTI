@@ -2574,7 +2574,7 @@ function renderTable(docs, highlightQ) {
       }
     }
 
-    return `<tr onclick="selectDoc(${d.id})">
+    return `<tr onclick="openViewer(${d.id})" style="cursor:pointer">
       <td>
         <div class="doc-cell">
           <div class="doc-icon" style="background:${bg}">${cat.emoji}</div>
