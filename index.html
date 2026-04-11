@@ -900,7 +900,7 @@
       <div class="toolbar">
         <div class="search-wrap">
           <svg class="search-icon" width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          <input class="search-input" type="text" placeholder="Pretraži po nazivu, kategoriji, bilješci..." oninput="handleSearchInput()" id="search-box" style="padding-right:26px">
+          <input class="search-input" type="text" placeholder="Pretraži po nazivu, sadržaju, bilješci..." oninput="handleSearchInput()" id="search-box" style="padding-right:26px">
           <button class="search-clear" id="search-clear-btn" onclick="clearSearch()" title="Očisti pretragu">✕</button>
         </div>
         <button class="search-mode-btn" id="fulltext-btn" onclick="openFulltext()" title="Pretraži unutar sadržaja dokumenata">
@@ -1506,20 +1506,88 @@ async function hydrateFilesFromIDB() {
 }
 
 // ─── BACKGROUND TEXT RE-INDEXING ─────────────────────────────────────────────
-const _BAD_TEXT = ['nije moguće', 'greška', 'nije pohranjen', 'prazan'];
+const _BAD_TEXT = ['nije moguće', 'greška', 'nije pohranjen', 'prazan', 'nema teksta', '(nema', 'cannot', 'failed'];
+
+function _hasGoodText(d) {
+  const txt = (d.ocr_text || '').trim();
+  return txt.length >= 30 && !_BAD_TEXT.some(s => txt.toLowerCase().includes(s));
+}
+
+function _guessMimeFromData(dataUrl) {
+  // Guess MIME from data URL prefix when file_type is missing
+  if(!dataUrl) return '';
+  const m = dataUrl.match(/^data:([^;]+);/);
+  return m ? m[1] : '';
+}
 
 function _needsReindex(d) {
   if(!d.file_data) return false;
-  const txt  = (d.ocr_text || '').toLowerCase();
-  const mime = d.file_type || '';
-  // Bad/missing text: empty, short, or contains known error strings
-  const badText = txt.length < 80 || _BAD_TEXT.some(s => txt.includes(s));
-  if(!badText) return false;
+  if(_hasGoodText(d)) return false;
+  // Guess MIME from data URL if file_type is missing
+  const mime = d.file_type || _guessMimeFromData(d.file_data) || '';
+  // Accept any supported type, or unknown type (try anyway)
   return mime === 'application/pdf' ||
     mime.includes('wordprocessingml') || mime === 'application/msword' ||
     mime.includes('spreadsheetml')   || mime === 'application/vnd.ms-excel' ||
     mime.startsWith('text/') ||
-    mime.startsWith('image/');
+    mime.startsWith('image/') ||
+    mime === '';  // unknown type — try extraction anyway
+}
+
+async function _extractTextFromBytes(bytes, mime) {
+  let text = '';
+  if(mime === 'application/pdf') {
+    if(await _loadPDFJS()) {
+      const pdf   = await pdfjsLib.getDocument({ data: bytes }).promise;
+      const n     = pdf.numPages;
+      const parts = [];
+      for(let p = 1; p <= n; p++) {
+        const pg  = await pdf.getPage(p);
+        const ct  = await pg.getTextContent();
+        const row = ct.items.map(i => i.str).join(' ').replace(/\s+/g,' ').trim();
+        if(row) parts.push(row);
+      }
+      text = parts.join('\n').trim();
+      // Scanned PDF — OCR up to 5 pages
+      if(text.length < n * 40) {
+        const ocrParts = [];
+        const worker   = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {});
+        for(let p = 1; p <= Math.min(n, 5); p++) {
+          const pg = await pdf.getPage(p);
+          const vp = pg.getViewport({ scale: 2 });
+          const cv = document.createElement('canvas');
+          cv.width = vp.width; cv.height = vp.height;
+          await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+          const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+          const res  = await worker.recognize(blob);
+          if(res.data.text.trim()) ocrParts.push(res.data.text.trim());
+        }
+        await worker.terminate();
+        if(ocrParts.join('').length > text.length) text = ocrParts.join('\n\n');
+      }
+    }
+  } else if(mime.includes('wordprocessingml') || mime === 'application/msword') {
+    if(typeof mammoth !== 'undefined') {
+      const res = await mammoth.extractRawText({ arrayBuffer: bytes.buffer });
+      text = res.value || '';
+    }
+  } else if(mime.includes('spreadsheetml') || mime === 'application/vnd.ms-excel') {
+    if(typeof XLSX !== 'undefined') {
+      const wb = XLSX.read(bytes, { type: 'array' });
+      text = wb.SheetNames.map(sn => XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n');
+    }
+  } else if(mime.startsWith('text/')) {
+    text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  } else if(mime.startsWith('image/') || mime === '') {
+    // Unknown type or image — try Tesseract
+    const blobType = mime || 'image/png';
+    const blob   = new Blob([bytes], { type: blobType });
+    const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {});
+    const res    = await worker.recognize(blob);
+    await worker.terminate();
+    text = res.data.text || '';
+  }
+  return text;
 }
 
 async function reindexDocsInBackground() {
@@ -1529,66 +1597,18 @@ async function reindexDocsInBackground() {
   let done = 0;
   for(const d of queue) {
     try {
-      const mime  = d.file_type || '';
+      const mime  = d.file_type || _guessMimeFromData(d.file_data) || '';
       const b64   = d.file_data.split(',')[1];
+      if(!b64) continue;
       const bytes = _b64ToUint8(b64);
-      let text    = '';
+      const text  = await _extractTextFromBytes(bytes, mime);
 
-      if(mime === 'application/pdf') {
-        if(await _loadPDFJS()) {
-          const pdf   = await pdfjsLib.getDocument({ data: bytes }).promise;
-          const n     = pdf.numPages;
-          const parts = [];
-          for(let p = 1; p <= n; p++) {
-            const pg  = await pdf.getPage(p);
-            const ct  = await pg.getTextContent();
-            const row = ct.items.map(i => i.str).join(' ').replace(/\s+/g,' ').trim();
-            if(row) parts.push(row);
-          }
-          text = parts.join('\n').trim();
-          // Scanned PDF — OCR up to 5 pages in background
-          if(text.length < n * 40) {
-            const ocrParts = [];
-            const worker   = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {});
-            for(let p = 1; p <= Math.min(n, 5); p++) {
-              const pg = await pdf.getPage(p);
-              const vp = pg.getViewport({ scale: 2 });
-              const cv = document.createElement('canvas');
-              cv.width = vp.width; cv.height = vp.height;
-              await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
-              const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
-              const res  = await worker.recognize(blob);
-              if(res.data.text.trim()) ocrParts.push(res.data.text.trim());
-            }
-            await worker.terminate();
-            if(ocrParts.join('').length > text.length) text = ocrParts.join('\n\n');
-          }
-        }
-      } else if(mime.includes('wordprocessingml') || mime === 'application/msword') {
-        if(typeof mammoth !== 'undefined') {
-          const res = await mammoth.extractRawText({ arrayBuffer: bytes.buffer });
-          text = res.value || '';
-        }
-      } else if(mime.includes('spreadsheetml') || mime === 'application/vnd.ms-excel') {
-        if(typeof XLSX !== 'undefined') {
-          const wb = XLSX.read(bytes, { type: 'array' });
-          text = wb.SheetNames.map(sn => XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n');
-        }
-      } else if(mime.startsWith('text/')) {
-        text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-      } else if(mime.startsWith('image/')) {
-        const blob   = new Blob([bytes], { type: mime });
-        const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {});
-        const res    = await worker.recognize(blob);
-        await worker.terminate();
-        text = res.data.text || '';
-      }
-
-      if(text.trim().length > 30) {
+      if(text.trim().length > 20) {
         d.ocr_text = text.trim().substring(0, 20000);
+        if(!d.file_type && mime) d.file_type = mime;
         done++;
       }
-    } catch(e) { /* skip */ }
+    } catch(e) { console.warn('reindex failed for', d.name, e); }
   }
 
   if(done) {
@@ -1606,56 +1626,35 @@ async function reindexAll() {
 
 async function runOCRonDoc(docId) {
   const doc = DOCS.find(d => d.id === docId);
-  if(!doc || !doc.file_data) return;
-  doc.ocr_text = '';   // reset so _needsReindex picks it up
-  toast(`Pokrećem OCR: "${doc.name}"...`, 'info');
-  // Temporarily push to a single-item queue via the bg indexer
-  const prev = DOCS;
-  const tmp  = [doc];
-  // Run inline
+  if(!doc) return;
+  // If file_data not in memory, load from IDB first
+  if(!doc.file_data) {
+    toast('Učitavam fajl iz pohrane...', 'info');
+    try {
+      const stored = await idbGet('file_' + docId);
+      if(stored) { doc.file_data = stored.data; doc.file_type = stored.type || doc.file_type || ''; }
+    } catch(e) {}
+    if(!doc.file_data) { toast('Fajl nije pohranjen — nije moguće izvući tekst.', 'error'); return; }
+  }
+  toast(`Ekstrahujem tekst: "${doc.name}"...`, 'info');
   try {
-    const mime  = doc.file_type || '';
+    const mime  = doc.file_type || _guessMimeFromData(doc.file_data) || '';
     const b64   = doc.file_data.split(',')[1];
+    if(!b64) { toast('Neispravan format fajla.', 'error'); return; }
     const bytes = _b64ToUint8(b64);
-    let text    = '';
-
-    if(mime === 'application/pdf') {
-      if(await _loadPDFJS()) {
-        const pdf  = await pdfjsLib.getDocument({ data: bytes }).promise;
-        const n    = pdf.numPages;
-        const parts = [];
-        for(let p = 1; p <= n; p++) {
-          const pg  = await pdf.getPage(p);
-          const ct  = await pg.getTextContent();
-          parts.push(ct.items.map(i => i.str).join(' ').replace(/\s+/g,' ').trim());
-        }
-        text = parts.join('\n').trim();
-        if(text.length < n * 40) {
-          toast('Skenirani PDF — pokretam Tesseract OCR...', 'info');
-          text = await _ocrPDFPages(pdf, n);
-        }
-      }
-    } else if(mime.startsWith('image/')) {
-      toast('Pokretam Tesseract OCR na slici...', 'info');
-      const blob   = new Blob([bytes], { type: mime });
-      const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {
-        logger: m => { if(m.status==='recognizing text') toast(`OCR ${Math.round(m.progress*100)}%`, 'info'); }
-      });
-      const res    = await worker.recognize(blob);
-      await worker.terminate();
-      text = res.data.text || '';
-    }
+    const text  = await _extractTextFromBytes(bytes, mime);
 
     if(text.trim().length > 20) {
       doc.ocr_text = text.trim().substring(0, 20000);
+      if(!doc.file_type && mime) doc.file_type = mime;
       saveDocs();
       renderTable(getVisibleDocs());
-      toast(`✓ Tekst prepoznat: "${doc.name}"`, 'success');
+      toast(`✓ Tekst indeksiran: "${doc.name}" (${doc.ocr_text.length} znakova)`, 'success');
     } else {
       toast('Nije moguće prepoznati tekst u ovom fajlu.', 'error');
     }
   } catch(e) {
-    toast('Greška pri OCR: ' + e.message, 'error');
+    toast('Greška pri ekstrakciji teksta: ' + e.message, 'error');
   }
 }
 
@@ -2852,6 +2851,10 @@ async function saveDoc() {
   renderCatList(); renderTable(getVisibleDocs()); updateBadges(); buildExpiryAlert(); applyFilters();
   const saved=await saveToDB(doc);
   if(saved?.id){ const i=DOCS.findIndex(d=>d.id===doc.id); if(i>-1) DOCS[i]._sbid=saved.id; saveDocs(); }
+  // If this doc has a file but poor/empty text, re-extract in background immediately
+  if(doc.file_data && _needsReindex(doc)) {
+    reindexDocsInBackground().catch(()=>{});
+  }
 }
 
 function editDoc(id) {
@@ -2972,7 +2975,7 @@ function renderTable(docs, highlightQ) {
         <div class="doc-cell">
           <div class="doc-icon" style="background:${bg}">${cat.emoji}</div>
           <div>
-            <div class="doc-name">${dispName}${d.ocr_text?'<span class="ocr-badge">OCR</span>':''}${d.file_data?'<span class="file-badge">📎</span>':''}${sharedBadge}</div>
+            <div class="doc-name">${dispName}${_hasGoodText(d)?'<span class="ocr-badge" title="Tekst indeksiran — pretraživ po sadržaju">🔍 OCR</span>':((d.file_data||d.file_type)?'<span class="ocr-badge" style="background:var(--amber-l);color:var(--amber)" title="Fajl učitan ali tekst nije indeksiran — kliknite ⟳ za OCR">⚠ Nije indeksiran</span>':'')}${d.file_data&&_hasGoodText(d)?'<span class="file-badge">📎</span>':''}${sharedBadge}</div>
             <div class="doc-meta">${esc(d.source||'')}${dispMeta?' · '+dispMeta:''}</div>
             ${taskBadge}
           </div>
