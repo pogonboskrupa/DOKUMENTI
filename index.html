@@ -695,6 +695,10 @@
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2v9M2 6.5h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
           Ručni unos
         </button>
+        <button class="sidebar-btn" onclick="reindexAll()" title="Ponovo izvuci tekst iz svih pohranjenih fajlova za pretragu">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M2.5 2.5l9 9" stroke="none"/><path d="M4 2a5 5 0 018 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/><path d="M10.5 1.5L12 4l-2.5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Re-indeksiraj fajlove
+        </button>
         <button class="sidebar-btn" onclick="exportCSV()">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 6.5L7 9l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           Izvezi CSV
@@ -1462,6 +1466,87 @@ async function hydrateFilesFromIDB() {
     }));
     renderTable(getVisibleDocs());  // re-render to show 📎 badges
   } catch(e) { console.warn('hydrateFilesFromIDB error', e); }
+  // After hydration, re-index docs that have file but no good text
+  reindexDocsInBackground();
+}
+
+// ─── BACKGROUND TEXT RE-INDEXING ─────────────────────────────────────────────
+function _needsReindex(d) {
+  if(!d.file_data) return false;
+  const txt = d.ocr_text || '';
+  if(txt.length > 100) return false; // already has content
+  const mime = d.file_type || '';
+  return mime === 'application/pdf' ||
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/msword' ||
+    mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mime === 'application/vnd.ms-excel' ||
+    mime.startsWith('text/');
+}
+
+async function reindexDocsInBackground() {
+  const queue = DOCS.filter(_needsReindex);
+  if(!queue.length) return;
+
+  let done = 0;
+  for(const d of queue) {
+    try {
+      const mime = d.file_type || '';
+      const b64  = d.file_data.split(',')[1];
+      let text   = '';
+
+      if(mime === 'application/pdf') {
+        if(await _loadPDFJS()) {
+          const data = _b64ToUint8(b64);
+          const pdf  = await pdfjsLib.getDocument({ data }).promise;
+          const parts = [];
+          for(let p = 1; p <= pdf.numPages; p++) {
+            const pg  = await pdf.getPage(p);
+            const ct  = await pg.getTextContent();
+            const row = ct.items.map(i => i.str).join(' ').replace(/\s+/g,' ').trim();
+            if(row) parts.push(row);
+          }
+          text = parts.join('\n').trim();
+        }
+      } else if(mime.includes('wordprocessingml') || mime === 'application/msword') {
+        if(typeof mammoth !== 'undefined') {
+          const bytes = _b64ToUint8(b64);
+          const res   = await mammoth.extractRawText({ arrayBuffer: bytes.buffer });
+          text = res.value || '';
+        }
+      } else if(mime.includes('spreadsheetml') || mime === 'application/vnd.ms-excel') {
+        if(typeof XLSX !== 'undefined') {
+          const bytes = _b64ToUint8(b64);
+          const wb    = XLSX.read(bytes, { type: 'array' });
+          text = wb.SheetNames.map(sn => {
+            const ws = wb.Sheets[sn];
+            return XLSX.utils.sheet_to_csv(ws);
+          }).join('\n');
+        }
+      } else if(mime.startsWith('text/')) {
+        text = new TextDecoder('utf-8', { fatal: false })
+          .decode(_b64ToUint8(b64));
+      }
+
+      if(text && text.trim().length > 30) {
+        d.ocr_text = text.trim().substring(0, 20000);
+        done++;
+      }
+    } catch(e) { /* skip this doc */ }
+  }
+
+  if(done) {
+    saveDocs();
+    renderTable(getVisibleDocs());
+    toast(`Indeksiranje završeno — ${done} dokument(a) dostupno za pretragu`, 'success');
+  }
+}
+
+async function reindexAll() {
+  // Force re-index all docs with files (ignore existing ocr_text)
+  DOCS.forEach(d => { if(d.file_data && _needsReindex(d)) d.ocr_text = ''; });
+  toast('Pokrećem re-indeksiranje svih fajlova...', 'info');
+  await reindexDocsInBackground();
 }
 
 function defaultDocs() {
