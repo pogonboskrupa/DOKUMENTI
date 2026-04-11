@@ -3351,16 +3351,27 @@ async function renderPDFviaPDFJS(doc, body) {
     body.appendChild(wrap);
 
     for(let p = 1; p <= n; p++) {
-      const page     = await pdf.getPage(p);
-      const baseVp   = page.getViewport({ scale: 1 });
-      const scale    = Math.min((wrap.clientWidth - 32) / baseVp.width, 3);
-      const vp       = page.getViewport({ scale });
-      const canvas   = document.createElement('canvas');
-      canvas.width   = vp.width;
-      canvas.height  = vp.height;
-      canvas.style.cssText = 'width:100%;max-width:100%;box-shadow:0 4px 16px rgba(0,0,0,.4);background:white;display:block';
+      const page      = await pdf.getPage(p);
+      const baseVp    = page.getViewport({ scale: 1 });
+      const dpr       = window.devicePixelRatio || 1;
+      const cssWidth  = Math.max(wrap.clientWidth - 32, 300);
+      const scale     = Math.min(cssWidth / baseVp.width, 4);
+      const vp        = page.getViewport({ scale: scale * dpr });
+
+      const canvas    = document.createElement('canvas');
+      canvas.width    = vp.width;
+      canvas.height   = vp.height;
+      // CSS size = layout size (without DPR), so pixels map 1:1 on HiDPI
+      canvas.style.width  = (vp.width  / dpr) + 'px';
+      canvas.style.height = (vp.height / dpr) + 'px';
+      canvas.style.maxWidth    = '100%';
+      canvas.style.display     = 'block';
+      canvas.style.background  = 'white';
+      canvas.style.boxShadow   = '0 4px 16px rgba(0,0,0,.4)';
+
       wrap.appendChild(canvas);
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
     }
 
     document.getElementById('viewer-page-info').textContent = `PDF · ${n} ${n === 1 ? 'stranica' : 'stranica'}`;
