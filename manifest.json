@@ -1,0 +1,43 @@
+{
+  "name": "Dokumentacija — Pogon BK",
+  "short_name": "Dokumentacija",
+  "description": "Upravljanje dokumentima i radnim zadacima — Pogon BK",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#185FA5",
+  "background_color": "#F5F4F0",
+  "lang": "bs",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novi dokument",
+      "short_name": "Novi",
+      "description": "Dodaj novi dokument",
+      "url": "/?action=new",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Pregled zadataka",
+      "short_name": "Zadaci",
+      "description": "Otvori pregled zadataka",
+      "url": "/?action=tasks",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+    }
+  ]
+}

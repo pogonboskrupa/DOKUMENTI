@@ -2,8 +2,19 @@
 <html lang="bs">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dokumenti Pogon BK</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Dokumentacija</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#185FA5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dokumentacija">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -602,8 +613,8 @@
           <path d="M12.5 13l1 1 2-2" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <span class="login-logo-text">Dokumenti Pogon BK</span>
-      <span class="login-logo-badge">v3</span>
+      <span class="login-logo-text">Dokumentacija</span>
+      <span class="login-logo-badge">Pogon BK</span>
     </div>
     <div class="login-title">Prijavite se na sistem evidencije dokumentacije</div>
     <div class="login-err" id="login-err">Pogrešno korisničko ime ili šifra.</div>
@@ -668,7 +679,7 @@
         <path d="M12.5 13l1 1 2-2" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    DokuVod
+    Dokumentacija
     <span class="logo-badge">Pogon BK</span>
   </div>
   <div class="topbar-right">
@@ -676,6 +687,10 @@
       <span class="conn-dot"></span>
       <span id="sb-status-txt">Supabase: nije spojeno</span>
     </div>
+    <button class="topbar-upload-btn" id="pwa-install-btn" onclick="pwaTriggerInstall()" title="Instaliraj aplikaciju" style="display:none">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 6.5L7 9l2.5-2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Instaliraj
+    </button>
     <button class="topbar-upload-btn" onclick="toggleDark()" id="dark-toggle-btn" title="Tamni/Svijetli način">🌙</button>
     <button class="topbar-upload-btn" onclick="showUploadPanel()">
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 4.5L7 2l2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -4260,6 +4275,56 @@ async function renderViewerContent(doc) {
     <div class="viewer-nofile-hint">Tip: ${esc(mime || 'nepoznat')}<br>Koristite dugme <strong>Preuzmi</strong> da otvorite fajl.</div>
   </div>`;
 }
+
+// ─── PWA ─────────────────────────────────────────────────────────────────────
+let _pwaPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _pwaPrompt = e;
+  const btn = document.getElementById('pwa-install-btn');
+  if(btn) btn.style.display = 'flex';
+});
+
+window.addEventListener('appinstalled', () => {
+  _pwaPrompt = null;
+  const btn = document.getElementById('pwa-install-btn');
+  if(btn) btn.style.display = 'none';
+  toast('Aplikacija je instalirana!', 'success');
+});
+
+function pwaTriggerInstall() {
+  if(!_pwaPrompt) return;
+  _pwaPrompt.prompt();
+  _pwaPrompt.userChoice.then(r => {
+    if(r.outcome === 'accepted') toast('Instalacija pokrenuta...', 'info');
+    _pwaPrompt = null;
+    const btn = document.getElementById('pwa-install-btn');
+    if(btn) btn.style.display = 'none';
+  });
+}
+
+// Register service worker
+if('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+// Handle manifest shortcut actions via URL params
+(function() {
+  const p = new URLSearchParams(location.search);
+  const action = p.get('action');
+  if(action === 'new') {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => { if(typeof showModal === 'function') showModal(); }, 500);
+    });
+  } else if(action === 'tasks') {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => { if(typeof openTT === 'function') openTT(); }, 500);
+    });
+  }
+})();
 
 </script>
 
