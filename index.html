@@ -526,18 +526,65 @@
   .task-done-btn:hover:not(.done){border-color:var(--green);color:var(--green);background:var(--green-l)}
   .task-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(2px);padding:20px}
   .task-overlay.open{display:flex}
-  .task-modal{background:var(--surface);border-radius:14px;width:380px;max-width:96vw;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:26px}
+  .task-modal{background:var(--surface);border-radius:14px;width:420px;max-width:96vw;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:26px}
   .task-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:3px}
   .task-sub{font-size:12px;color:var(--text3);margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .task-type-row{display:flex;gap:8px;margin-bottom:18px}
   .task-type-btn{flex:1;padding:11px 8px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;background:var(--surface2);color:var(--text2);transition:all .15s;text-align:center;line-height:1.4}
   .task-type-btn.active{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
   .task-lbl{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
-  .task-select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--surface2);font-family:'DM Sans',sans-serif;margin-bottom:18px;box-sizing:border-box}
+  .task-select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--surface2);font-family:'DM Sans',sans-serif;margin-bottom:14px;box-sizing:border-box}
   .task-select:focus{outline:none;border-color:var(--blue)}
+  .task-input{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--surface2);font-family:'DM Sans',sans-serif;margin-bottom:14px;box-sizing:border-box}
+  .task-input:focus{outline:none;border-color:var(--blue)}
+  .task-textarea{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:12px;color:var(--text);background:var(--surface2);font-family:'DM Sans',sans-serif;margin-bottom:14px;box-sizing:border-box;resize:vertical;min-height:64px;line-height:1.5}
+  .task-textarea:focus{outline:none;border-color:var(--blue)}
   .task-footer{display:flex;gap:8px;align-items:center}
   .task-remove-btn{background:none;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;padding:7px 12px;transition:all .15s;margin-right:auto}
   .task-remove-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-l)}
+
+  /* TASK TRACKER */
+  .tt-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:flex-start;justify-content:center;backdrop-filter:blur(3px);padding:24px 16px;overflow-y:auto}
+  .tt-overlay.open{display:flex}
+  .tt-modal{background:var(--surface);border-radius:14px;width:100%;max-width:900px;box-shadow:var(--sh-lg);overflow:hidden;margin:auto}
+  .tt-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);background:var(--surface2)}
+  .tt-hdr-title{font-size:15px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+  .tt-hdr-close{background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:3px 7px;border-radius:5px}
+  .tt-hdr-close:hover{background:var(--border);color:var(--text)}
+  .tt-filters{display:flex;gap:6px;padding:12px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+  .tt-filter-btn{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-family:'DM Sans',sans-serif;transition:all .15s}
+  .tt-filter-btn:hover{border-color:var(--blue);color:var(--blue)}
+  .tt-filter-btn.active{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
+  .tt-filter-btn.red{background:var(--red-l);border-color:var(--red);color:var(--red)}
+  .tt-assignee-sel{padding:5px 10px;border-radius:20px;font-size:11px;font-weight:500;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-family:'DM Sans',sans-serif;cursor:pointer;margin-left:auto}
+  .tt-assignee-sel:focus{outline:none;border-color:var(--blue)}
+  .tt-body{padding:0}
+  .tt-empty{padding:40px;text-align:center;color:var(--text3);font-size:13px}
+  .tt-table{width:100%;border-collapse:collapse;font-size:13px}
+  .tt-table th{padding:9px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);background:var(--surface2);white-space:nowrap}
+  .tt-table td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  .tt-table tr:last-child td{border-bottom:none}
+  .tt-table tr:hover td{background:var(--surface2)}
+  .tt-doc-name{font-weight:500;color:var(--text);cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tt-doc-name:hover{color:var(--blue);text-decoration:underline}
+  .tt-type-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;white-space:nowrap}
+  .tt-type-zadatak{background:var(--blue-l);color:var(--blue)}
+  .tt-type-odgovor{background:var(--amber-l);color:var(--amber)}
+  .tt-due{font-size:12px;font-family:'DM Mono',monospace;white-space:nowrap}
+  .tt-due.overdue{color:var(--red);font-weight:600}
+  .tt-due.soon{color:var(--amber);font-weight:600}
+  .tt-due.ok{color:var(--text2)}
+  .tt-status-done{font-size:11px;color:var(--green);font-weight:600}
+  .tt-status-pending{font-size:11px;color:var(--amber);font-weight:600}
+  .tt-notes{font-size:11px;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
+  .tt-actions{display:flex;gap:5px;white-space:nowrap}
+  .tt-btn{padding:4px 9px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:all .15s}
+  .tt-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+  .tt-btn.done{border-color:var(--green);color:var(--green);background:var(--green-l)}
+  .tt-btn.done:hover{background:#c8e6b0}
+  .tt-summary{display:flex;gap:14px;padding:10px 22px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--text2)}
+  .tt-sum-item{display:flex;align-items:center;gap:5px}
+  .tt-sum-dot{width:8px;height:8px;border-radius:50%}
 </style>
 </head>
 <body>
@@ -709,6 +756,11 @@
           <div class="cat-item-left"><span class="cat-dot" style="background:#534AB7"></span>Svi sa zadatkom</div>
           <span class="cat-badge" id="b-tasks-all">0</span>
         </div>
+        <button class="sidebar-btn" onclick="openTT()" style="margin-top:7px;display:flex;align-items:center;gap:6px;font-size:12px">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 5h5M3.5 7h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="11" cy="11" r="2.5" fill="var(--blue)"/><path d="M10 11l.7.7 1.3-1.3" stroke="white" stroke-width="1" stroke-linecap="round"/></svg>
+          Pregled zadataka
+          <span class="cat-badge" id="b-tasks-overdue" style="background:var(--red-l);color:var(--red);display:none">0 kasni</span>
+        </button>
       </div>
       <div style="height:1px;background:var(--border);margin-bottom:14px"></div>
 
@@ -2962,7 +3014,12 @@ function renderTable(docs, highlightQ) {
     const tk = d.task;
     const taskBadge = tk ? (tk.resolved
       ? `<button class="task-badge t-done" onclick="event.stopPropagation();openTaskModal(${d.id})" title="Zadatak riješen — klikni za uređivanje">✓ ${tk.type==='odgovor'?'Odgovoreno':'Riješeno'}</button>`
-      : `<button class="task-badge ${tk.type==='odgovor'?'t-odgovor':'t-zadatak'}" onclick="event.stopPropagation();openTaskModal(${d.id})" title="Klikni za uređivanje zadatka">${tk.type==='odgovor'?'↩ Odgovor potreban':'📋 Zadatak'}</button>`)
+      : (() => {
+          const dc = _taskDueClass(tk.dueDate);
+          const dueStr = tk.dueDate ? ` · ${dc==='overdue'?'⚠ ':''}${fmtD(tk.dueDate)}` : '';
+          const style  = dc==='overdue' ? ' style="background:var(--red-l);color:var(--red);border-color:var(--red)"' : dc==='soon' ? ' style="background:var(--amber-l);color:var(--amber);border-color:var(--amber)"' : '';
+          return `<button class="task-badge ${tk.type==='odgovor'?'t-odgovor':'t-zadatak'}"${style} onclick="event.stopPropagation();openTaskModal(${d.id})" title="Klikni za uređivanje zadatka">${tk.type==='odgovor'?'↩ Odgovor potreban':'📋 Zadatak'}${dueStr}</button>`;
+        })())
       : '';
     const doneBtn = tk && !tk.resolved
       ? `<button class="action-btn task-done-btn" onclick="event.stopPropagation();toggleTaskDone(${d.id},event)" title="Označi kao riješeno">✓</button>`
@@ -3097,13 +3154,20 @@ function filterByTask(type, el) {
 }
 
 function updateTaskBadges() {
-  const docs = getVisibleDocs();
+  const docs  = getVisibleDocs();
+  const today = new Date(); today.setHours(0,0,0,0);
   const pending = docs.filter(d => d.task && !d.task.resolved).length;
   const all     = docs.filter(d => d.task).length;
-  const bPending = document.getElementById('b-tasks-pending');
-  const bAll     = document.getElementById('b-tasks-all');
+  const overdue = docs.filter(d => d.task && !d.task.resolved && d.task.dueDate && new Date(d.task.dueDate+'T00:00:00') < today).length;
+  const bPending  = document.getElementById('b-tasks-pending');
+  const bAll      = document.getElementById('b-tasks-all');
+  const bOverdue  = document.getElementById('b-tasks-overdue');
   if(bPending) bPending.textContent = pending;
   if(bAll)     bAll.textContent     = all;
+  if(bOverdue) {
+    bOverdue.textContent     = overdue + ' kasni';
+    bOverdue.style.display   = overdue > 0 ? 'inline-flex' : 'none';
+  }
 }
 
 function sortBy(col) {
@@ -3196,7 +3260,11 @@ document.addEventListener('keydown', function(e) {
     openFulltext();
   }
   if(e.key === 'Escape') {
-    if(document.getElementById('ft-overlay').classList.contains('open')) {
+    if(document.getElementById('task-overlay').classList.contains('open')) {
+      closeTaskModal();
+    } else if(document.getElementById('tt-overlay').classList.contains('open')) {
+      closeTT();
+    } else if(document.getElementById('ft-overlay').classList.contains('open')) {
       closeFulltext();
     } else if(document.getElementById('viewer-overlay').classList.contains('open')) {
       closeViewer();
@@ -3377,16 +3445,28 @@ function openTaskModal(docId) {
   sel.innerHTML = '<option value="">— Nije dodijeljeno —</option>' +
     USERS.map(u => `<option value="${esc(u.id)}" ${doc.task?.assignee === u.id ? 'selected' : ''}>${esc(u.username)}</option>`).join('');
 
+  // Due date
+  document.getElementById('task-due-date').value = doc.task?.dueDate || '';
+  // Priority
+  document.getElementById('task-priority').value = doc.task?.priority || 'normal';
+  // Notes
+  document.getElementById('task-notes').value = doc.task?.notes || '';
+
   // Show resolved info if already resolved
-  const resolvedRow = document.getElementById('task-resolved-row');
+  const resolvedRow     = document.getElementById('task-resolved-row');
+  const resolutionRow   = document.getElementById('task-resolution-row');
   if(doc.task?.resolved) {
     const by = doc.task.resolvedBy ? USERS.find(u => u.id === doc.task.resolvedBy) : null;
     const at = doc.task.resolvedAt ? new Date(doc.task.resolvedAt).toLocaleDateString('bs-BA') : '';
     document.getElementById('task-resolved-info').textContent =
       `Riješeno${by ? ' od ' + by.username.split(' ')[0] : ''}${at ? ' · ' + at : ''}`;
     resolvedRow.style.display = 'flex';
+    resolutionRow.style.display = 'block';
+    document.getElementById('task-resolution-notes').value = doc.task?.resolutionNotes || '';
   } else {
     resolvedRow.style.display = 'none';
+    resolutionRow.style.display = doc.task ? 'block' : 'none';
+    document.getElementById('task-resolution-notes').value = doc.task?.resolutionNotes || '';
   }
 
   document.getElementById('task-remove-btn').style.display = doc.task ? 'block' : 'none';
@@ -3408,14 +3488,21 @@ function saveTask() {
   const doc = DOCS.find(d => d.id === _taskDocId);
   if(!doc) return;
   doc.task = {
-    type:       _taskType,
-    assignee:   document.getElementById('task-assignee').value || null,
-    resolved:   doc.task?.resolved || false,
-    resolvedAt: doc.task?.resolvedAt || null,
-    resolvedBy: doc.task?.resolvedBy || null,
+    type:            _taskType,
+    assignee:        document.getElementById('task-assignee').value || null,
+    dueDate:         document.getElementById('task-due-date').value || null,
+    priority:        document.getElementById('task-priority').value || 'normal',
+    notes:           document.getElementById('task-notes').value.trim() || null,
+    resolved:        doc.task?.resolved || false,
+    resolvedAt:      doc.task?.resolvedAt || null,
+    resolvedBy:      doc.task?.resolvedBy || null,
+    resolutionNotes: document.getElementById('task-resolution-notes').value.trim() || null,
+    createdAt:       doc.task?.createdAt || new Date().toISOString(),
+    createdBy:       doc.task?.createdBy || (currentUser?.id || null),
   };
   saveDocs();
   renderTable(getVisibleDocs());
+  updateTaskBadges();
   closeTaskModal();
   const label = _taskType === 'odgovor' ? 'Odgovor potreban' : 'Radni zadatak';
   toast(`Zadatak postavljen: ${label}`, 'success');
@@ -3440,7 +3527,146 @@ function toggleTaskDone(docId, ev) {
   doc.task.resolvedBy = doc.task.resolved ? (currentUser?.id || null) : null;
   saveDocs();
   renderTable(getVisibleDocs());
+  updateTaskBadges();
   toast(doc.task.resolved ? '✓ Označeno kao riješeno' : 'Vraćeno na neriješeno', doc.task.resolved ? 'success' : 'info');
+}
+
+// ─── TASK TRACKER ────────────────────────────────────────────────────────────
+let _ttFilter = 'all';
+
+function openTT() {
+  // Populate assignee filter
+  const sel = document.getElementById('tt-assignee-filter');
+  sel.innerHTML = '<option value="">Svi radnici</option>' +
+    USERS.map(u => `<option value="${esc(u.id)}">${esc(u.username)}</option>`).join('');
+  renderTT();
+  document.getElementById('tt-overlay').classList.add('open');
+}
+
+function closeTT() {
+  document.getElementById('tt-overlay').classList.remove('open');
+}
+
+function setTTFilter(f) {
+  _ttFilter = f;
+  ['all','pending','overdue','today','done'].forEach(x => {
+    document.getElementById('tt-f-'+x).classList.toggle('active', x === f);
+  });
+  if(f === 'overdue') document.getElementById('tt-f-overdue').classList.add('red');
+  renderTT();
+}
+
+function _taskDueClass(dueDate) {
+  if(!dueDate) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due   = new Date(dueDate + 'T00:00:00');
+  if(due < today) return 'overdue';
+  const diff  = (due - today) / 86400000;
+  if(diff <= 3) return 'soon';
+  return 'ok';
+}
+
+function renderTT() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const assigneeFilter = document.getElementById('tt-assignee-filter')?.value || '';
+
+  let docs = getVisibleDocs().filter(d => d.task);
+
+  // Assignee filter
+  if(assigneeFilter) docs = docs.filter(d => d.task.assignee === assigneeFilter);
+
+  // Status filter
+  if(_ttFilter === 'pending')  docs = docs.filter(d => !d.task.resolved);
+  if(_ttFilter === 'done')     docs = docs.filter(d => d.task.resolved);
+  if(_ttFilter === 'overdue')  docs = docs.filter(d => {
+    if(d.task.resolved || !d.task.dueDate) return false;
+    return new Date(d.task.dueDate + 'T00:00:00') < today;
+  });
+  if(_ttFilter === 'today') docs = docs.filter(d => {
+    if(!d.task.dueDate) return false;
+    const due = new Date(d.task.dueDate + 'T00:00:00');
+    return due.getTime() === today.getTime();
+  });
+
+  // Sort: overdue first, then by due date, then pending, then resolved
+  docs.sort((a, b) => {
+    if(a.task.resolved !== b.task.resolved) return a.task.resolved ? 1 : -1;
+    const ad = a.task.dueDate || '9999';
+    const bd = b.task.dueDate || '9999';
+    return ad < bd ? -1 : ad > bd ? 1 : 0;
+  });
+
+  const tbody  = document.getElementById('tt-tbody');
+  const empty  = document.getElementById('tt-empty');
+  const sumEl  = document.getElementById('tt-summary');
+
+  if(!docs.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = docs.map(d => {
+      const tk  = d.task;
+      const cat = getCat(d.cat);
+      const assigneeUser = tk.assignee ? USERS.find(u => u.id === tk.assignee) : null;
+      const assigneeName = assigneeUser ? assigneeUser.username.split(' ')[0] : '—';
+      const dueClass = _taskDueClass(tk.dueDate);
+      const dueLabel = tk.dueDate ? (
+        dueClass === 'overdue' ? `⚠ ${fmtD(tk.dueDate)}` :
+        dueClass === 'soon'    ? `⏰ ${fmtD(tk.dueDate)}` :
+        fmtD(tk.dueDate)
+      ) : '—';
+      const prioLabel = tk.priority === 'hitan' ? '<span style="color:var(--red);font-weight:700">⚠ Hitan</span>' :
+                        tk.priority === 'visok'  ? '<span style="color:var(--amber);font-weight:600">↑ Visok</span>' : '—';
+      const resolvedBy = tk.resolvedBy ? USERS.find(u => u.id === tk.resolvedBy) : null;
+      const statusHtml = tk.resolved
+        ? `<span class="tt-status-done">✓ Riješeno${resolvedBy ? ' · ' + resolvedBy.username.split(' ')[0] : ''}</span>`
+        : `<span class="tt-status-pending">${dueClass==='overdue'?'⚠ Kasni':'Na čekanju'}</span>`;
+      return `<tr>
+        <td>
+          <div class="tt-doc-name" onclick="closeTT();openViewer(${d.id})" title="${esc(d.name)}">${esc(d.name)}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${cat.emoji} ${esc(cat.name)}</div>
+        </td>
+        <td><span class="tt-type-pill tt-type-${tk.type}">${tk.type==='odgovor'?'↩ Odgovor':'📋 Zadatak'}</span></td>
+        <td style="font-size:12px;color:var(--text2)">${esc(assigneeName)}</td>
+        <td><span class="tt-due ${dueClass}">${dueLabel}</span></td>
+        <td>${prioLabel}</td>
+        <td>${tk.notes ? `<span class="tt-notes" title="${esc(tk.notes)}">${esc(tk.notes)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
+        <td>${statusHtml}${tk.resolutionNotes&&tk.resolved?`<div style="font-size:10px;color:var(--text3);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(tk.resolutionNotes)}">${esc(tk.resolutionNotes)}</div>`:''}
+        ${tk.resolvedAt&&tk.resolved?`<div style="font-size:10px;color:var(--text3)">${new Date(tk.resolvedAt).toLocaleDateString('bs-BA')}</div>`:''}</td>
+        <td>
+          <div class="tt-actions">
+            <button class="tt-btn${tk.resolved?' done':''}" onclick="ttToggleDone(${d.id})">${tk.resolved?'↺ Poništi':'✓ Riješeno'}</button>
+            <button class="tt-btn" onclick="closeTT();openTaskModal(${d.id})">✎</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Summary bar
+  const all     = getVisibleDocs().filter(d => d.task);
+  const pending = all.filter(d => !d.task.resolved);
+  const overdue = pending.filter(d => d.task.dueDate && new Date(d.task.dueDate+'T00:00:00') < today);
+  const done    = all.filter(d => d.task.resolved);
+  sumEl.innerHTML = `
+    <div class="tt-sum-item"><div class="tt-sum-dot" style="background:var(--blue)"></div>Ukupno: <strong>${all.length}</strong></div>
+    <div class="tt-sum-item"><div class="tt-sum-dot" style="background:var(--amber)"></div>Na čekanju: <strong>${pending.length}</strong></div>
+    ${overdue.length?`<div class="tt-sum-item"><div class="tt-sum-dot" style="background:var(--red)"></div>Kasni: <strong style="color:var(--red)">${overdue.length}</strong></div>`:''}
+    <div class="tt-sum-item"><div class="tt-sum-dot" style="background:var(--green)"></div>Riješeno: <strong>${done.length}</strong></div>
+  `;
+}
+
+function ttToggleDone(docId) {
+  const doc = DOCS.find(d => d.id === docId);
+  if(!doc || !doc.task) return;
+  doc.task.resolved   = !doc.task.resolved;
+  doc.task.resolvedAt = doc.task.resolved ? new Date().toISOString() : null;
+  doc.task.resolvedBy = doc.task.resolved ? (currentUser?.id || null) : null;
+  saveDocs();
+  renderTable(getVisibleDocs());
+  updateTaskBadges();
+  renderTT();
 }
 
 // ─── SHARE / DIJELI ──────────────────────────────────────────────────────────
@@ -4048,14 +4274,76 @@ async function renderViewerContent(doc) {
     </div>
     <div class="task-lbl">Dodijeli radniku</div>
     <select class="task-select" id="task-assignee"></select>
-    <div id="task-resolved-row" style="display:none;margin-bottom:16px;padding:10px 12px;background:var(--green-l);border:1px solid #9BD164;border-radius:var(--rs);font-size:12px;color:var(--green);display:flex;align-items:center;gap:8px">
+    <div style="display:flex;gap:10px">
+      <div style="flex:1">
+        <div class="task-lbl">Rok za izvršenje</div>
+        <input type="date" class="task-input" id="task-due-date" style="margin-bottom:14px">
+      </div>
+      <div style="flex:1">
+        <div class="task-lbl">Prioritet</div>
+        <select class="task-select" id="task-priority" style="margin-bottom:14px">
+          <option value="normal">Normalan</option>
+          <option value="visok">Visok</option>
+          <option value="hitan">⚠ Hitan</option>
+        </select>
+      </div>
+    </div>
+    <div class="task-lbl">Napomena / Uputa za implementaciju</div>
+    <textarea class="task-textarea" id="task-notes" placeholder="Opis zadatka, uputa za implementaciju..."></textarea>
+    <div id="task-resolved-row" style="display:none;margin-bottom:14px;padding:10px 12px;background:var(--green-l);border:1px solid #9BD164;border-radius:var(--rs);font-size:12px;color:var(--green);align-items:center;gap:8px">
       <span>✓</span><span id="task-resolved-info"></span>
+    </div>
+    <div id="task-resolution-row" style="display:none;margin-bottom:14px">
+      <div class="task-lbl">Bilješka o rješavanju</div>
+      <textarea class="task-textarea" id="task-resolution-notes" placeholder="Šta je urađeno, kako je riješeno..." style="margin-bottom:0"></textarea>
     </div>
     <div class="task-footer">
       <button class="task-remove-btn" id="task-remove-btn" onclick="removeTask()" style="display:none">Ukloni zadatak</button>
       <button class="btn-cancel" onclick="closeTaskModal()">Odustani</button>
       <button class="btn-save" onclick="saveTask()">Spremi</button>
     </div>
+  </div>
+</div>
+
+<!-- TASK TRACKER OVERLAY -->
+<div class="tt-overlay" id="tt-overlay" onclick="if(event.target===this)closeTT()">
+  <div class="tt-modal">
+    <div class="tt-hdr">
+      <div class="tt-hdr-title">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="10" height="13" rx="2" stroke="var(--blue)" stroke-width="1.3"/><path d="M4 6h6M4 8.5h4" stroke="var(--blue)" stroke-width="1.2" stroke-linecap="round"/><circle cx="13" cy="12" r="2.5" fill="var(--blue)"/><path d="M12 12l.7.7 1.3-1.3" stroke="white" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Praćenje zadataka i odgovora
+      </div>
+      <button class="tt-hdr-close" onclick="closeTT()">✕</button>
+    </div>
+    <div class="tt-filters">
+      <button class="tt-filter-btn active" id="tt-f-all"    onclick="setTTFilter('all')">Svi</button>
+      <button class="tt-filter-btn"        id="tt-f-pending" onclick="setTTFilter('pending')">Na čekanju</button>
+      <button class="tt-filter-btn"        id="tt-f-overdue" onclick="setTTFilter('overdue')">⚠ Prekoračen rok</button>
+      <button class="tt-filter-btn"        id="tt-f-today"   onclick="setTTFilter('today')">Danas</button>
+      <button class="tt-filter-btn"        id="tt-f-done"    onclick="setTTFilter('done')">Riješeni</button>
+      <select class="tt-assignee-sel" id="tt-assignee-filter" onchange="renderTT()">
+        <option value="">Svi radnici</option>
+      </select>
+    </div>
+    <div class="tt-body">
+      <table class="tt-table">
+        <thead>
+          <tr>
+            <th style="min-width:180px">Dokument</th>
+            <th>Tip</th>
+            <th>Dodijeljeno</th>
+            <th>Rok</th>
+            <th>Prioritet</th>
+            <th>Napomena</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tt-tbody"></tbody>
+      </table>
+      <div class="tt-empty" id="tt-empty" style="display:none">Nema zadataka za prikaz.</div>
+    </div>
+    <div class="tt-summary" id="tt-summary"></div>
   </div>
 </div>
 
