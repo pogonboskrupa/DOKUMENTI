@@ -1530,6 +1530,19 @@ async function idbDel(key) {
   });
 }
 
+// ── localStorage fallback for small files (IDB may fail in private/PWA mode) ──
+const _LS_FILE_MAX = 900000; // ~680 KB original — stays within LS budget
+function _lsFileSave(id, data, type) {
+  if(!data || data.length > _LS_FILE_MAX) return;
+  try { localStorage.setItem('dkf_' + id, JSON.stringify({ data, type })); } catch(e) {}
+}
+function _lsFileLoad(id) {
+  try { const r = localStorage.getItem('dkf_' + id); return r ? JSON.parse(r) : null; } catch(e) { return null; }
+}
+function _lsFileDel(id) {
+  try { localStorage.removeItem('dkf_' + id); } catch(e) {}
+}
+
 // saveDocs: strip file_data before localStorage, save file_data separately in IDB
 function saveDocs() {
   try {
@@ -1539,10 +1552,11 @@ function saveDocs() {
     });
     localStorage.setItem('dokuvod_docs', JSON.stringify(slim));
   } catch(e) { console.warn('saveDocs localStorage error', e); }
-  // Save each doc's file_data to IDB asynchronously
+  // Save each doc's file_data to IDB + LS fallback asynchronously
   DOCS.forEach(d => {
     if(d.file_data) {
       idbSet('file_' + d.id, { data: d.file_data, type: d.file_type || '' }).catch(()=>{});
+      _lsFileSave(d.id, d.file_data, d.file_type || '');
     }
   });
 }
@@ -1563,14 +1577,18 @@ function loadCats(userId)  {
   catch(e){ return [...DEFAULT_CATS]; }
 }
 
-// After initial load, hydrate DOCS with file_data from IDB
+// After initial load, hydrate DOCS with file_data from IDB (or LS fallback)
 async function hydrateFilesFromIDB() {
   try {
     await Promise.all(DOCS.map(async d => {
-      const stored = await idbGet('file_' + d.id);
+      const stored = await idbGet('file_' + d.id).catch(() => null);
       if(stored) {
         d.file_data = stored.data;
         d.file_type = stored.type || d.file_type || '';
+      } else {
+        // LS fallback — covers IDB failures (PWA quota, private mode, Safari)
+        const ls = _lsFileLoad(d.id);
+        if(ls) { d.file_data = ls.data; d.file_type = ls.type || d.file_type || ''; }
       }
     }));
     renderTable(getVisibleDocs());  // re-render to show 📎 badges
@@ -1698,13 +1716,12 @@ async function reindexAll() {
 async function runOCRonDoc(docId) {
   const doc = DOCS.find(d => d.id === docId);
   if(!doc) return;
-  // If file_data not in memory, load from IDB first
+  // If file_data not in memory, load from IDB or LS fallback
   if(!doc.file_data) {
     toast('Učitavam fajl iz pohrane...', 'info');
-    try {
-      const stored = await idbGet('file_' + docId);
-      if(stored) { doc.file_data = stored.data; doc.file_type = stored.type || doc.file_type || ''; }
-    } catch(e) {}
+    const stored = await idbGet('file_' + docId).catch(() => null);
+    if(stored) { doc.file_data = stored.data; doc.file_type = stored.type || doc.file_type || ''; }
+    else { const ls = _lsFileLoad(docId); if(ls) { doc.file_data = ls.data; doc.file_type = ls.type || doc.file_type || ''; } }
     if(!doc.file_data) { toast('Fajl nije pohranjen — nije moguće izvući tekst.', 'error'); return; }
   }
   toast(`Ekstrahujem tekst: "${doc.name}"...`, 'info');
@@ -2958,9 +2975,10 @@ async function saveDoc() {
     DOCS.unshift(doc);
     toast(`"${name}" dodan`,'success');
   }
-  // Save file_data to IndexedDB immediately (not just in saveDocs)
+  // Save file_data to IndexedDB + LS fallback immediately (not just in saveDocs)
   if(doc.file_data) {
     idbSet('file_' + doc.id, { data: doc.file_data, type: doc.file_type || '' }).catch(()=>{});
+    _lsFileSave(doc.id, doc.file_data, doc.file_type || '');
   }
   saveDocs(); closeModal(); pendingOCR=null;
   renderCatList(); renderTable(getVisibleDocs()); updateBadges(); buildExpiryAlert(); applyFilters();
@@ -3009,6 +3027,7 @@ async function delDoc(id) {
     if(undone) return;
     if(doc._sbid) await deleteFromDB(doc._sbid);
     idbDel('file_' + id).catch(()=>{});
+    _lsFileDel(id);
   });
 }
 
@@ -4041,15 +4060,16 @@ async function openViewer(docId) {
   body.innerHTML = '<div class="viewer-html" style="display:flex;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3)"><div class="spinner-blue"></div> Učitavam dokument...</div>';
   document.getElementById('viewer-overlay').classList.add('open');
 
-  // Load file_data from IDB on-demand if not yet hydrated
+  // Load file_data from IDB (or LS fallback) on-demand if not yet hydrated
   if(!doc.file_data) {
-    try {
-      const stored = await idbGet('file_' + docId);
-      if(stored) {
-        doc.file_data = stored.data;
-        doc.file_type = stored.type || doc.file_type || '';
-      }
-    } catch(e) {}
+    const stored = await idbGet('file_' + docId).catch(() => null);
+    if(stored) {
+      doc.file_data = stored.data;
+      doc.file_type = stored.type || doc.file_type || '';
+    } else {
+      const ls = _lsFileLoad(docId);
+      if(ls) { doc.file_data = ls.data; doc.file_type = ls.type || doc.file_type || ''; }
+    }
   }
 
   const sizeKB = doc.file_data ? Math.round(doc.file_data.length * 0.75 / 1024) : 0;
