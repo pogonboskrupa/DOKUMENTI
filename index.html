@@ -3880,7 +3880,7 @@ function saveShare() {
 
   doc.sharedWith = sharedWith;
 
-  // Preserve owner
+  // Ensure owner is always set — without it any user would see the doc
   if(!doc.owner && currentUser) doc.owner = currentUser.id;
 
   // Record activity log entries for changes
@@ -3928,13 +3928,19 @@ function saveShare() {
   closeShare();
 }
 
-// Also filter DOCS for current user — show owned + shared
+// Returns true if userId "owns" doc d:
+// — explicitly owns it (d.owner === userId)
+// — OR doc has no owner AND no sharedWith (legacy/company-wide doc → visible to all)
+function _isOwnerOf(d, userId) {
+  if(d.owner) return d.owner === userId;
+  return !d.sharedWith || d.sharedWith.length === 0;
+}
+
+// Filter DOCS for current user — show owned + shared only
 function getVisibleDocs() {
   if(!currentUser) return DOCS;
   return DOCS.filter(d => {
-    const isOwner = !d.owner || d.owner === currentUser.id;
-    const isShared = (d.sharedWith || []).includes(currentUser.id);
-    return isOwner || isShared;
+    return _isOwnerOf(d, currentUser.id) || (d.sharedWith || []).includes(currentUser.id);
   });
 }
 
@@ -3955,10 +3961,7 @@ function filterShare(type, el) {
 function applyShareFilter(docs) {
   if(!currentUser || activeShareFilter === 'all') return docs;
   if(activeShareFilter === 'sharedByMe') {
-    return docs.filter(d => {
-      const isOwner = !d.owner || d.owner === currentUser.id;
-      return isOwner && d.sharedWith && d.sharedWith.length > 0;
-    });
+    return docs.filter(d => _isOwnerOf(d, currentUser.id) && d.sharedWith && d.sharedWith.length > 0);
   }
   if(activeShareFilter === 'sharedWithMe') {
     return docs.filter(d => (d.sharedWith || []).includes(currentUser.id));
@@ -3968,7 +3971,7 @@ function applyShareFilter(docs) {
 
 function updateShareBadges() {
   if(!currentUser) return;
-  const myDocs    = DOCS.filter(d => !d.owner || d.owner === currentUser.id);
+  const myDocs    = DOCS.filter(d => _isOwnerOf(d, currentUser.id));
   const sharedByMe   = myDocs.filter(d => d.sharedWith && d.sharedWith.length > 0);
   const sharedWithMe = DOCS.filter(d => (d.sharedWith || []).includes(currentUser.id));
 
