@@ -16,7 +16,7 @@
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -1573,7 +1573,7 @@ async function hydrateFilesFromIDB() {
 }
 
 // ─── BACKGROUND TEXT RE-INDEXING ─────────────────────────────────────────────
-const _BAD_TEXT = ['nije moguće', 'greška', 'nije pohranjen', 'prazan', 'nema teksta', '(nema', 'cannot', 'failed'];
+const _BAD_TEXT = ['nije moguće', 'greška', 'nije pohranjen', 'prazan', 'nema teksta', '(nema', 'cannot', 'failed', 'stari word format', 'nije podržan'];
 
 function _hasGoodText(d) {
   const txt = (d.ocr_text || '').trim();
@@ -1634,10 +1634,7 @@ async function _extractTextFromBytes(bytes, mime) {
       }
     }
   } else if(mime.includes('wordprocessingml') || mime === 'application/msword') {
-    if(typeof mammoth !== 'undefined') {
-      const res = await mammoth.extractRawText({ arrayBuffer: bytes.buffer });
-      text = res.value || '';
-    }
+    text = await _mammothExtract(bytes.buffer).catch(() => '');
   } else if(mime.includes('spreadsheetml') || mime === 'application/vnd.ms-excel') {
     if(typeof XLSX !== 'undefined') {
       const wb = XLSX.read(bytes, { type: 'array' });
@@ -2467,30 +2464,58 @@ async function extractTextFile(file) {
   });
 }
 
+// Detect if ArrayBuffer is a real DOCX (ZIP magic PK) vs old binary .doc (OLE2 D0CF11E0)
+function _isDocx(ab) {
+  const hdr = new Uint8Array(ab, 0, 4);
+  return hdr[0] === 0x50 && hdr[1] === 0x4B; // PK signature
+}
+
+// Safely extract raw text from a DOCX ArrayBuffer using Mammoth,
+// with convertToHtml as fallback and XML-strip as last resort.
+async function _mammothExtract(ab) {
+  if(!_isDocx(ab)) {
+    return 'Stari Word format (.doc) nije podržan. Konvertujte dokument u .docx format.';
+  }
+  if(typeof mammoth === 'undefined') {
+    throw new Error('mammoth.js nije učitan');
+  }
+  // Attempt 1: extractRawText (fastest, plain text)
+  try {
+    const res = await mammoth.extractRawText({ arrayBuffer: ab });
+    if(res.value && res.value.trim().length > 5) return res.value.trim();
+  } catch(e) { /* fall through */ }
+  // Attempt 2: convertToHtml then strip tags (different code path in mammoth)
+  try {
+    const res = await mammoth.convertToHtml({ arrayBuffer: ab });
+    const div = document.createElement('div');
+    div.innerHTML = res.value || '';
+    const txt = div.textContent || div.innerText || '';
+    if(txt.trim().length > 5) return txt.trim();
+  } catch(e) { /* fall through */ }
+  // Attempt 3: raw byte ZIP scan — look for uncompressed XML fragments
+  try {
+    const bytes = new Uint8Array(ab);
+    const str = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    // Try to pull text content between w:t tags (may work for uncompressed entries)
+    const wt = [...str.matchAll(/<w:t[^>]*>([^<]{1,500})<\/w:t>/g)].map(m => m[1]).join(' ');
+    if(wt.trim().length > 20) return wt.replace(/\s+/g, ' ').trim();
+  } catch(e) { /* fall through */ }
+  return '';
+}
+
 // Extract text from DOCX (ZIP-based XML)
 async function extractDOCX(file) {
   return new Promise((resolve) => {
     const r = new FileReader();
     r.onload = async (e) => {
       try {
-        if(typeof mammoth !== 'undefined') {
-          const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
-          resolve((result.value || '').substring(0, 8000) || 'Prazan Word dokument.');
-        } else {
-          // fallback if mammoth not loaded
-          const bytes = new Uint8Array(e.target.result);
-          const str = new TextDecoder('utf-8', {fatal:false}).decode(bytes);
-          const xmlMatch = str.match(/word\/document\.xml[\s\S]{0,200}([\s\S]{0,50000}?)PK/);
-          let txt = '';
-          if(xmlMatch) {
-            txt = xmlMatch[1].replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\s+/g,' ').trim();
-          }
-          resolve(txt.substring(0,8000) || 'Nije moguće ekstrahirati tekst iz Word dokumenta.');
-        }
+        const txt = await _mammothExtract(e.target.result);
+        resolve(txt.substring(0, 8000) || 'Prazan Word dokument.');
       } catch(err) {
-        resolve('Greška pri čitanju Word dokumenta: ' + err.message);
+        resolve('');
       }
     };
+    r.onerror = () => resolve('');
     r.readAsArrayBuffer(file);
   });
 }
@@ -4193,19 +4218,25 @@ async function renderViewerContent(doc) {
      mime === 'application/msword') {
     body.innerHTML = '<div class="viewer-html" style="display:flex;align-items:center;justify-content:center;color:var(--text3)"><div class="spinner-blue" style="margin-right:8px"></div> Konvertujem Word dokument...</div>';
     try {
-      // Convert base64 data URL to ArrayBuffer
-      const base64 = doc.file_data.split(',')[1];
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const ab = bytes.buffer;
-
-      if(typeof mammoth !== 'undefined') {
-        const result = await mammoth.convertToHtml({ arrayBuffer: ab });
-        body.innerHTML = `<div class="viewer-html">${result.value}</div>`;
-        document.getElementById('viewer-page-info').textContent = 'Word dokument';
-      } else {
+      const ab = _b64ToUint8(doc.file_data.split(',')[1]).buffer;
+      if(!_isDocx(ab)) {
+        body.innerHTML = `<div class="viewer-html"><p style="color:var(--amber);font-weight:600">⚠️ Stari Word format (.doc)</p><p style="margin-top:8px;color:var(--text2)">Stari binarni .doc format nije podržan za pregled u browseru. Koristite dugme <strong>Preuzmi</strong> da otvorite fajl, ili ga konvertujte u .docx format.</p></div>`;
+        document.getElementById('viewer-page-info').textContent = 'Word .doc (nije podržan pregled)';
+      } else if(typeof mammoth === 'undefined') {
         throw new Error('mammoth.js nije učitan');
+      } else {
+        // Try convertToHtml first (richer output), fall back to raw text
+        let html = '';
+        try {
+          const res = await mammoth.convertToHtml({ arrayBuffer: ab });
+          html = res.value || '';
+        } catch(e) {
+          const txt = await _mammothExtract(ab).catch(() => '');
+          html = txt ? txt.split('\n').map(l => `<p>${esc(l)}</p>`).join('') : '';
+        }
+        if(!html.trim()) throw new Error('Prazan dokument ili nije moguće pročitati sadržaj.');
+        body.innerHTML = `<div class="viewer-html">${html}</div>`;
+        document.getElementById('viewer-page-info').textContent = 'Word dokument';
       }
     } catch(e) {
       body.innerHTML = `<div class="viewer-html"><p style="color:var(--red)">⚠️ Greška pri prikazu Word dokumenta: ${esc(e.message)}</p><p style="margin-top:12px">Koristite dugme <strong>Preuzmi</strong> da otvorite fajl.</p></div>`;
