@@ -1179,7 +1179,8 @@
 
     <div class="settings-sec">
       <div class="settings-sec-title">SQL — Kreiranje tabele (izvršite jednom)</div>
-      <div class="sql-code">create table dokumenti (
+      <div class="sql-code">-- === NOVA TABELA (ako još niste kreirali) ===
+create table dokumenti (
   id          bigint primary key generated always as identity,
   name        text not null,
   cat         text default 'ostalo',
@@ -1189,11 +1190,21 @@
   status      text default 'ok',
   notes       text,
   ocr_text    text,
+  ai_summary  text,
+  owner       text,
+  shared_with text[],
+  updated_at  timestamptz default now(),
   created_at  timestamptz default now()
 );
 alter table dokumenti enable row level security;
 create policy "Javni pristup" on dokumenti
-  for all using (true);</div>
+  for all using (true);
+
+-- === NADOGRADNJA (ako tabela već postoji) ===
+alter table dokumenti add column if not exists ai_summary  text;
+alter table dokumenti add column if not exists owner       text;
+alter table dokumenti add column if not exists shared_with text[];
+alter table dokumenti add column if not exists updated_at  timestamptz default now();</div>
     </div>
 
     <div class="settings-sec">
@@ -1980,7 +1991,7 @@ async function loadFromSB() {
   try {
     const data = await sbFetch('GET',`${CONFIG.supabaseTable}?order=created_at.desc`);
     if(data&&data.length) {
-      DOCS = data.map(d => ({ id:d.id, name:d.name, cat:d.cat||'ostalo', date:d.date||'', expire:d.expire||'', source:d.source||'', status:d.status||'ok', notes:d.notes||'', ocr_text:d.ocr_text||'', ai_summary:d.ai_summary||'', _sbid:d.id }));
+      DOCS = data.map(d => ({ id:d.id, name:d.name, cat:d.cat||'ostalo', date:d.date||'', expire:d.expire||'', source:d.source||'', status:d.status||'ok', notes:d.notes||'', ocr_text:d.ocr_text||'', ai_summary:d.ai_summary||'', owner:d.owner||'', sharedWith:Array.isArray(d.shared_with)?d.shared_with:[], _sbid:d.id }));
       saveDocs();
       filtered = [...DOCS];
     }
@@ -1996,7 +2007,7 @@ async function loadFromSB() {
 
 async function saveToDB(doc) {
   if(!CONFIG.supabaseUrl||!CONFIG.supabaseKey) return null;
-  const p = { name:doc.name, cat:doc.cat, date:doc.date||null, expire:doc.expire||null, source:doc.source, status:doc.status, notes:doc.notes||'', ocr_text:doc.ocr_text||'', ai_summary:doc.ai_summary||'' };
+  const p = { name:doc.name, cat:doc.cat, date:doc.date||null, expire:doc.expire||null, source:doc.source, status:doc.status, notes:doc.notes||'', ocr_text:doc.ocr_text||'', ai_summary:doc.ai_summary||'', owner:doc.owner||'', shared_with:doc.sharedWith||[], updated_at:new Date().toISOString() };
   setSyncState('syncing','Spremam...');
   try {
     let r;
