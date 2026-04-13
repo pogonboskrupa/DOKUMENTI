@@ -96,6 +96,7 @@
   .cat-act-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;border-radius:3px}
   .cat-act-btn:hover{color:var(--text);background:var(--border)}
   .cat-act-btn.del:hover{color:var(--red);background:var(--red-l)}
+  .cat-act-btn:disabled{opacity:.25;cursor:default;pointer-events:none}
   .add-cat-btn{width:100%;padding:8px 10px;background:none;border:1px dashed var(--border2);border-radius:var(--rs);font-size:12px;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;font-family:'DM Sans',sans-serif;transition:all .15s}
   .add-cat-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
   .new-cat-form{display:none;margin-top:8px;padding:10px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border)}
@@ -1829,6 +1830,17 @@ function toggleNewCatForm() {
   }
 }
 
+function moveCat(id, dir, e) {
+  e.stopPropagation();
+  const idx = CATS.findIndex(c => c.id === id);
+  if(idx < 0) return;
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= CATS.length) return;
+  [CATS[idx], CATS[newIdx]] = [CATS[newIdx], CATS[idx]];
+  saveCats();
+  renderCatList();
+}
+
 function addCategory() {
   const name = document.getElementById('new-cat-name').value.trim();
   if(!name) { document.getElementById('new-cat-name').style.borderColor='var(--red)'; return; }
@@ -1897,9 +1909,11 @@ function renderCatList() {
       </div>
       <span class="cat-badge" id="b-sve">${getVisibleDocs().length}</span>
     </div>`;
-  const catItems = CATS.map(c => {
+  const catItems = CATS.map((c, i) => {
     const cnt = getVisibleDocs().filter(d => d.cat===c.id).length;
     const isActive = activeTag===c.id;
+    const isFirst = i === 0;
+    const isLast  = i === CATS.length - 1;
     return `
       <div class="cat-item${isActive?' active':''}" data-catid="${c.id}" onclick="filterTag('${c.id}',this)">
         <div class="cat-item-left">
@@ -1907,10 +1921,12 @@ function renderCatList() {
           <span class="cat-name">${esc(c.name)}</span>
         </div>
         <span class="cat-badge" id="b-${c.id}">${cnt}</span>
-        ${!c.builtin ? `<div class="cat-actions">
-          <button class="cat-act-btn" onclick="startRenamecat('${c.id}',event)" title="Preimenuj">✎</button>
-          <button class="cat-act-btn del" onclick="deleteCategory('${c.id}',event)" title="Obriši">✕</button>
-        </div>` : ''}
+        <div class="cat-actions">
+          <button class="cat-act-btn" onclick="moveCat('${c.id}',-1,event)" title="Pomjeri gore"${isFirst?' disabled':''}>↑</button>
+          <button class="cat-act-btn" onclick="moveCat('${c.id}',1,event)" title="Pomjeri dolje"${isLast?' disabled':''}>↓</button>
+          ${!c.builtin ? `<button class="cat-act-btn" onclick="startRenamecat('${c.id}',event)" title="Preimenuj">✎</button>
+          <button class="cat-act-btn del" onclick="deleteCategory('${c.id}',event)" title="Obriši">✕</button>` : ''}
+        </div>
       </div>`;
   }).join('');
   list.innerHTML = allItem + catItems;
