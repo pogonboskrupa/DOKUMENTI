@@ -740,7 +740,7 @@
     <!-- SIDEBAR -->
     <div class="sidebar">
       <div style="margin-bottom:14px">
-        <div class="sidebar-title">Kategorije</div>
+        <div class="sidebar-title">Moje kategorije</div>
         <div id="cat-list"></div>
 
         <!-- NEW CATEGORY FORM -->
@@ -831,7 +831,7 @@
           <span style="font-size:13px">📥</span>
           <span class="cat-name">Dijeljeno sa mnom</span>
         </div>
-        <span class="cat-badge" id="b-sharedwithme">0</span>
+        <span class="cat-badge" id="b-sharedwithme" style="background:var(--blue-l);color:var(--blue)">0</span>
       </div>
 
       <div style="height:1px;background:var(--border);margin:12px 0"></div>
@@ -1336,6 +1336,7 @@ function doLogin() {
   }
 
   currentUser = user;
+  CATS = loadCats(user.id);
   const remember = document.getElementById('login-remember').checked;
   try {
     sessionStorage.setItem('dokuvod_uid', user.id);
@@ -1370,6 +1371,7 @@ function resetAndReload() {
 
 function doLogout() {
   currentUser = null;
+  CATS = [...DEFAULT_CATS];
   try { sessionStorage.removeItem('dokuvod_uid'); localStorage.removeItem('dokuvod_remember_uid'); } catch(e){}
   document.getElementById('user-chip').classList.remove('open');
 
@@ -1544,7 +1546,10 @@ function saveDocs() {
     }
   });
 }
-function saveCats() { try { localStorage.setItem('dokuvod_cats', JSON.stringify(CATS)); } catch(e){} }
+function saveCats() {
+  const key = currentUser ? `dokuvod_cats_${currentUser.id}` : 'dokuvod_cats';
+  try { localStorage.setItem(key, JSON.stringify(CATS)); } catch(e){}
+}
 
 function loadDocs()  {
   try {
@@ -1552,8 +1557,9 @@ function loadDocs()  {
     return d ? JSON.parse(d) : defaultDocs();
   } catch(e){ return defaultDocs(); }
 }
-function loadCats()  {
-  try { const d = localStorage.getItem('dokuvod_cats'); return d ? JSON.parse(d) : [...DEFAULT_CATS]; }
+function loadCats(userId)  {
+  const key = userId ? `dokuvod_cats_${userId}` : 'dokuvod_cats';
+  try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : [...DEFAULT_CATS]; }
   catch(e){ return [...DEFAULT_CATS]; }
 }
 
@@ -1753,6 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const u   = uid ? USERS.find(x => x.id === uid) : null;
     if(u) {
       currentUser = u;
+      CATS = loadCats(u.id);
       if(uid) sessionStorage.setItem('dokuvod_uid', uid);
       updateUserChip();
       // keep login-screen hidden (already display:none)
@@ -1939,7 +1946,7 @@ function populateCatSelect() {
   if(cur && CATS.find(c => c.id===cur)) sel.value = cur;
 }
 
-function getCat(id) { return CATS.find(c => c.id===id) || { name:'Ostalo', color:'#888780', emoji:'📎' }; }
+function getCat(id) { return CATS.find(c => c.id===id) || DEFAULT_CATS.find(c => c.id===id) || { name:'Ostalo', color:'#888780', emoji:'📎' }; }
 
 // ─── SUPABASE ────────────────────────────────────────────────────────────────
 async function sbFetch(method, path, body) {
