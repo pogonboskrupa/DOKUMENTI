@@ -2545,11 +2545,43 @@ function _isDocx(ab) {
   return hdr[0] === 0x50 && hdr[1] === 0x4B; // PK signature
 }
 
+// Extract text from old .doc binary (OLE2) format by scanning for UTF-16LE runs.
+// Word stores document text as UTF-16LE in the WordDocument stream; this heuristic
+// finds printable runs without needing a full OLE2 parser.
+function _extractDocBinaryText(ab) {
+  const u8 = new Uint8Array(ab);
+  const len = u8.length;
+  const chunks = [];
+  let i = 0;
+  while(i < len - 1) {
+    // Potential start of UTF-16LE run: printable ASCII + null byte
+    if(u8[i+1] === 0x00 && u8[i] >= 0x20 && u8[i] < 0x80) {
+      let run = '';
+      let j = i;
+      while(j + 1 < len && u8[j+1] === 0x00) {
+        const lo = u8[j];
+        if(lo === 0x0D || lo === 0x07 || lo === 0x0B) { run += '\n'; j += 2; }
+        else if(lo === 0x09) { run += ' '; j += 2; }
+        else if(lo >= 0x20 && lo < 0x80) { run += String.fromCharCode(lo); j += 2; }
+        else break;
+      }
+      const t = run.replace(/[ \t]+/g, ' ').trim();
+      if(t.length >= 5) chunks.push(t);
+      i = j > i ? j : i + 2;
+    } else { i++; }
+  }
+  // Deduplicate adjacent identical chunks (often repeated in .doc header/footer)
+  const deduped = chunks.filter((c, k) => c !== chunks[k - 1]);
+  return deduped.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 // Safely extract raw text from a DOCX ArrayBuffer using Mammoth,
 // with convertToHtml as fallback and XML-strip as last resort.
 async function _mammothExtract(ab) {
   if(!_isDocx(ab)) {
-    return 'Stari Word format (.doc) nije podržan. Konvertujte dokument u .docx format.';
+    // Old .doc binary — try heuristic UTF-16LE extraction
+    const text = _extractDocBinaryText(ab);
+    return text.length > 10 ? text : '';
   }
   if(typeof mammoth === 'undefined') {
     throw new Error('mammoth.js nije učitan');
@@ -4316,8 +4348,22 @@ async function renderViewerContent(doc) {
     try {
       const ab = _b64ToUint8(doc.file_data.split(',')[1]).buffer;
       if(!_isDocx(ab)) {
-        body.innerHTML = `<div class="viewer-html"><p style="color:var(--amber);font-weight:600">⚠️ Stari Word format (.doc)</p><p style="margin-top:8px;color:var(--text2)">Stari binarni .doc format nije podržan za pregled u browseru. Koristite dugme <strong>Preuzmi</strong> da otvorite fajl, ili ga konvertujte u .docx format.</p></div>`;
-        document.getElementById('viewer-page-info').textContent = 'Word .doc (nije podržan pregled)';
+        // Old .doc binary — extract text via UTF-16LE scan
+        const rawText = _extractDocBinaryText(ab);
+        if(rawText && rawText.length > 10) {
+          const paras = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+          const htmlContent = paras.map(p => `<p style="margin:0 0 .75em;line-height:1.85;font-size:14px">${esc(p)}</p>`).join('');
+          body.innerHTML = `<div class="viewer-html">
+            <div style="padding:9px 13px;background:var(--amber-l);border:1px solid var(--amber);border-radius:var(--rs);margin-bottom:22px;font-size:12px;color:var(--amber);font-weight:500">
+              ⚠️ Stari .doc format — prikazan izvučeni tekst, originalno formatiranje nije dostupno
+            </div>
+            <div style="color:var(--text);font-family:'DM Sans',sans-serif">${htmlContent}</div>
+          </div>`;
+          document.getElementById('viewer-page-info').textContent = 'Word .doc (tekst)';
+        } else {
+          body.innerHTML = `<div class="viewer-html"><p style="color:var(--amber);font-weight:600">⚠️ Stari Word format (.doc)</p><p style="margin-top:8px;color:var(--text2)">Tekst nije mogao biti izvučen iz ovog fajla. Koristite dugme <strong>Preuzmi</strong> da otvorite fajl u Word-u.</p></div>`;
+          document.getElementById('viewer-page-info').textContent = 'Word .doc';
+        }
       } else if(typeof mammoth === 'undefined') {
         throw new Error('mammoth.js nije učitan');
       } else {
