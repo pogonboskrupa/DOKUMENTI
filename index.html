@@ -2546,32 +2546,55 @@ function _isDocx(ab) {
 }
 
 // Extract text from old .doc binary (OLE2) format by scanning for UTF-16LE runs.
-// Word stores document text as UTF-16LE in the WordDocument stream; this heuristic
-// finds printable runs without needing a full OLE2 parser.
+// Word stores document text as UTF-16LE. Accepts ASCII (hi=0x00) AND Latin
+// Extended-A/B (hi=0x01, 0x02) so Bosnian chars č/š/đ/ž/ć are not run-breakers.
 function _extractDocBinaryText(ab) {
   const u8 = new Uint8Array(ab);
   const len = u8.length;
   const chunks = [];
   let i = 0;
+
+  const _isTextHi = hi => hi === 0x00 || hi === 0x01 || hi === 0x02;
+
   while(i < len - 1) {
-    // Potential start of UTF-16LE run: printable ASCII + null byte
-    if(u8[i+1] === 0x00 && u8[i] >= 0x20 && u8[i] < 0x80) {
+    const lo = u8[i], hi = u8[i + 1];
+    // Start of a UTF-16LE text run: ASCII char + 0x00 triggers scan
+    if(hi === 0x00 && lo >= 0x20 && lo < 0x80) {
       let run = '';
       let j = i;
-      while(j + 1 < len && u8[j+1] === 0x00) {
-        const lo = u8[j];
-        if(lo === 0x0D || lo === 0x07 || lo === 0x0B) { run += '\n'; j += 2; }
-        else if(lo === 0x09) { run += ' '; j += 2; }
-        else if(lo >= 0x20 && lo < 0x80) { run += String.fromCharCode(lo); j += 2; }
-        else break;
+      while(j + 1 < len) {
+        const clo = u8[j], chi = u8[j + 1];
+        if(chi === 0x00) {
+          if(clo === 0x0D || clo === 0x07 || clo === 0x0B) { run += '\n'; j += 2; }
+          else if(clo === 0x09)               { run += ' ';  j += 2; }
+          else if(clo >= 0x20 && clo < 0x80)  { run += String.fromCharCode(clo); j += 2; }
+          else break;
+        } else if(chi === 0x01 || chi === 0x02) {
+          // Latin Extended-A (U+0100–U+01FF): ć č đ š ž and more
+          // Latin Extended-B (U+0200–U+02FF): rare but keep runs intact
+          run += String.fromCharCode(chi * 256 + clo); j += 2;
+        } else {
+          break;
+        }
       }
       const t = run.replace(/[ \t]+/g, ' ').trim();
-      if(t.length >= 5) chunks.push(t);
+      if(t.length >= 4) chunks.push(t);
       i = j > i ? j : i + 2;
     } else { i++; }
   }
-  // Deduplicate adjacent identical chunks (often repeated in .doc header/footer)
-  const deduped = chunks.filter((c, k) => c !== chunks[k - 1]);
+
+  // Merge very short trailing fragments (≤3 chars) into the previous chunk
+  const merged = [];
+  for(const c of chunks) {
+    if(merged.length && c.length <= 3 && !/\s/.test(c)) {
+      merged[merged.length - 1] += c;
+    } else {
+      merged.push(c);
+    }
+  }
+
+  // Deduplicate adjacent identical chunks (repeated in .doc header/footer)
+  const deduped = merged.filter((c, k) => c !== merged[k - 1]);
   return deduped.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
