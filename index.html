@@ -1991,7 +1991,31 @@ async function loadFromSB() {
   try {
     const data = await sbFetch('GET',`${CONFIG.supabaseTable}?order=created_at.desc`);
     if(data&&data.length) {
-      DOCS = data.map(d => ({ id:d.id, name:d.name, cat:d.cat||'ostalo', date:d.date||'', expire:d.expire||'', source:d.source||'', status:d.status||'ok', notes:d.notes||'', ocr_text:d.ocr_text||'', ai_summary:d.ai_summary||'', owner:d.owner||'', sharedWith:Array.isArray(d.shared_with)?d.shared_with:[], _sbid:d.id }));
+      // Merge with existing DOCS: preserve local id and file_data so IDB lookups keep working.
+      // A local doc matches by _sbid (already synced before) or by numeric id equality.
+      const prevDocs = DOCS;
+      DOCS = data.map(d => {
+        const local = prevDocs.find(loc => String(loc._sbid) === String(d.id) || String(loc.id) === String(d.id));
+        return {
+          id:          local ? local.id : d.id,   // keep original local id — IDB key depends on this
+          name:        d.name,
+          cat:         d.cat||'ostalo',
+          date:        d.date||'',
+          expire:      d.expire||'',
+          source:      d.source||'',
+          status:      d.status||'ok',
+          notes:       d.notes||'',
+          ocr_text:    d.ocr_text||'',
+          ai_summary:  d.ai_summary||'',
+          owner:       d.owner||'',
+          sharedWith:  Array.isArray(d.shared_with) ? d.shared_with : [],
+          _sbid:       d.id,
+          // Preserve existing file_data/file_type — hydrateFilesFromIDB may not have run yet
+          file_data:   local ? (local.file_data || null) : null,
+          file_type:   local ? (local.file_type || '') : '',
+          task:        local ? (local.task || null) : null,
+        };
+      });
       saveDocs();
       filtered = [...DOCS];
     }
