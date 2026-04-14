@@ -2598,6 +2598,162 @@ function _extractDocBinaryText(ab) {
   return deduped.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// Parse .doc via OLE2 compound file + FIB + CLX piece table.
+// Returns clean paragraph-delimited text, or null on failure.
+// This gives much cleaner output than the binary UTF-16LE scan.
+function _parseDocOle2(ab) {
+  try {
+    const u8 = new Uint8Array(ab), dv = new DataView(ab);
+    if(u8.length < 512 || dv.getUint32(0, true) !== 0xE011CFD0) return null;
+    const ss = 1 << dv.getUint16(30, true); // sector size (usually 512)
+    const r32 = o => dv.getUint32(o, true);
+
+    // Build FAT from DIFAT entries in the OLE2 header
+    const fat = [];
+    for(let i = 0; i < 109; i++) {
+      const fs = r32(76 + i * 4);
+      if(fs >= 0xFFFFFFFE) break;
+      for(let j = 0; j < ss; j += 4) fat.push(r32((fs + 1) * ss + j));
+    }
+
+    // Read and concatenate a sector chain into a Uint8Array
+    function chain(sec, limit) {
+      const parts = []; let total = 0, s = sec;
+      while(s < 0xFFFFFFFE && (limit == null || total < limit)) {
+        const o = (s + 1) * ss;
+        if(o + ss > u8.length) break;
+        parts.push(u8.subarray(o, o + ss)); total += ss;
+        s = fat[s] ?? 0xFFFFFFFE;
+      }
+      const out = new Uint8Array(limit != null ? Math.min(total, limit) : total);
+      let p = 0; for(const c of parts) { const n = Math.min(c.length, out.length - p); out.set(c.subarray(0, n), p); p += n; if(p >= out.length) break; }
+      return out;
+    }
+
+    // Parse directory to find WordDocument + Table streams
+    const dir = chain(r32(48)), ddv = new DataView(dir.buffer);
+    let wdSec = -1, wdSz = 0, t0 = -1, t1 = -1;
+    for(let i = 0; i * 128 < dir.length; i++) {
+      const b = i * 128, nl = ddv.getUint16(b + 64, true);
+      if(!nl || nl > 64) continue;
+      let nm = ''; for(let j = 0; j < nl - 2; j += 2) { const c = ddv.getUint16(b + j, true); if(c) nm += String.fromCharCode(c); }
+      const sec = ddv.getUint32(b + 116, true), sz = ddv.getUint32(b + 120, true);
+      if(nm === 'WordDocument') { wdSec = sec; wdSz = sz; }
+      else if(nm === '0Table') t0 = sec;
+      else if(nm === '1Table') t1 = sec;
+    }
+    if(wdSec < 0) return null;
+
+    const wd = chain(wdSec, wdSz), wdDV = new DataView(wd.buffer);
+
+    // FIB validation
+    const wi = wdDV.getUint16(0, true);
+    if(wi !== 0xA5EC && wi !== 0xA5DC) return null;
+
+    // Which table stream (bit 9 of fibFlags at 0x0A)
+    const tSec = (wdDV.getUint16(10, true) & 0x0200) ? t1 : t0;
+    if(tSec < 0) return null;
+    const tbl = chain(tSec), tDV = new DataView(tbl.buffer);
+
+    // Navigate FIB to find fcClx / lcbClx (pair 23 in FibRgFcLcb97)
+    const csw  = wdDV.getUint16(0x20, true);
+    const cslw = wdDV.getUint32(0x22 + csw * 2, true);
+    const fcLcbBase = 0x22 + csw * 2 + 4 + cslw * 4 + 4;
+    const fcClx  = wdDV.getUint32(fcLcbBase + 23 * 8, true);
+    const lcbClx = wdDV.getUint32(fcLcbBase + 23 * 8 + 4, true);
+    if(!lcbClx || fcClx + lcbClx > tbl.length) return null;
+
+    // Walk CLX: skip Rme entries (type=1), process Pcdt (type=2)
+    let text = '', pos = fcClx;
+    while(pos < fcClx + lcbClx) {
+      const t = tDV.getUint8(pos);
+      if(t === 1) { pos += 3 + tDV.getUint16(pos + 1, true); continue; }
+      if(t !== 2) break;
+
+      const lcbPcd = tDV.getUint32(pos + 1, true);
+      const base = pos + 5;
+      const n = Math.floor((lcbPcd - 4) / 12); // piece count
+
+      for(let pi = 0; pi < n; pi++) {
+        const cpEnd = tDV.getUint32(base + (pi + 1) * 4, true);
+        const cpStart = tDV.getUint32(base + pi * 4, true);
+        const pOff = base + (n + 1) * 4 + pi * 8;
+        if(pOff + 4 > tbl.length) break;
+
+        const fcVal = tDV.getUint32(pOff, true);
+        const compressed = (fcVal & 0x40000000) !== 0;
+        const fc = compressed ? ((fcVal & 0x3FFFFFFF) >> 1) : (fcVal & 0x3FFFFFFF);
+
+        for(let c = 0, cpLen = cpEnd - cpStart; c < cpLen; c++) {
+          let ch;
+          if(compressed) {
+            if(fc + c >= wd.length) break;
+            ch = wd[fc + c];
+          } else {
+            const o = fc + c * 2;
+            if(o + 1 >= wd.length) break;
+            ch = wdDV.getUint16(o, true);
+          }
+          if(ch === 0x000D || ch === 0x0007) text += '\n';       // paragraph mark
+          else if(ch === 0x000B || ch === 0x000C) text += '\n';  // soft return
+          else if(ch === 0x0009) text += '\t';
+          else if(ch >= 0x0020 && ch !== 0xFFFF) text += String.fromCharCode(ch);
+        }
+      }
+      break;
+    }
+    return text.length > 5 ? text : null;
+  } catch(e) { return null; }
+}
+
+// Convert extracted .doc text to Word-like A4 page HTML.
+// Uses heuristics: ALL-CAPS short lines → centered+bold; body → justified.
+function _renderDocPage(rawText) {
+  const lines = rawText.split('\n');
+  const paras = [];
+
+  for(let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.replace(/\t/g, '    ').trimEnd();
+    const trimmed = line.trim();
+
+    if(!trimmed) { paras.push('<p style="margin:0;min-height:0.75em">&nbsp;</p>'); continue; }
+
+    // Measure characteristics
+    const hasLower = /[a-zčšžđćâêîôûàèìòùäëïöü]/.test(trimmed);
+    const letterCount = (trimmed.match(/[A-ZČŠŽĐĆa-zčšžđć]/g) || []).length;
+    const isAllCaps = !hasLower && letterCount > 2;
+    const isShort = trimmed.length <= 60;
+    const prevEmpty = !lines[i - 1]?.trim();
+    const nextEmpty = !lines[i + 1]?.trim();
+
+    let align = 'justify';
+    let bold = false;
+
+    if(isAllCaps && isShort) {
+      align = 'center'; bold = true;          // e.g. "DISCIPLINSKA NURIJA KOVAČEVIĆ"
+    } else if(isShort && prevEmpty && nextEmpty) {
+      align = 'center';                        // isolated short line → centered
+    } else if(isShort && prevEmpty && isAllCaps) {
+      align = 'center'; bold = true;
+    }
+
+    // Leading tab indent
+    const indent = (raw.match(/^\t+/) || [''])[0].length;
+    const indentStyle = indent ? `padding-left:${indent * 2}em;` : '';
+
+    let content = esc(trimmed);
+    if(bold) content = `<strong>${content}</strong>`;
+    paras.push(`<p style="text-align:${align};margin:0 0 .2em;line-height:1.5;${indentStyle}">${content}</p>`);
+  }
+
+  return `<div style="overflow-y:auto;height:100%;padding:24px 0;background:#525659;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:24px">
+    <div style="background:white;width:min(21cm,calc(100vw - 80px));min-height:28cm;padding:2.54cm 3cm;box-shadow:0 3px 18px rgba(0,0,0,.55);font-family:'Times New Roman',Georgia,serif;font-size:12pt;color:#000;box-sizing:border-box;flex-shrink:0">
+      ${paras.join('')}
+    </div>
+  </div>`;
+}
+
 // Safely extract raw text from a DOCX ArrayBuffer using Mammoth,
 // with convertToHtml as fallback and XML-strip as last resort.
 async function _mammothExtract(ab) {
@@ -4371,18 +4527,11 @@ async function renderViewerContent(doc) {
     try {
       const ab = _b64ToUint8(doc.file_data.split(',')[1]).buffer;
       if(!_isDocx(ab)) {
-        // Old .doc binary — extract text via UTF-16LE scan
-        const rawText = _extractDocBinaryText(ab);
+        // Old .doc: try OLE2+CLX proper parsing first, fall back to UTF-16LE scan
+        const rawText = _parseDocOle2(ab) || _extractDocBinaryText(ab);
         if(rawText && rawText.length > 10) {
-          const paras = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-          const htmlContent = paras.map(p => `<p style="margin:0 0 .75em;line-height:1.85;font-size:14px">${esc(p)}</p>`).join('');
-          body.innerHTML = `<div class="viewer-html">
-            <div style="padding:9px 13px;background:var(--amber-l);border:1px solid var(--amber);border-radius:var(--rs);margin-bottom:22px;font-size:12px;color:var(--amber);font-weight:500">
-              ⚠️ Stari .doc format — prikazan izvučeni tekst, originalno formatiranje nije dostupno
-            </div>
-            <div style="color:var(--text);font-family:'DM Sans',sans-serif">${htmlContent}</div>
-          </div>`;
-          document.getElementById('viewer-page-info').textContent = 'Word .doc (tekst)';
+          body.innerHTML = _renderDocPage(rawText);
+          document.getElementById('viewer-page-info').textContent = 'Word .doc';
         } else {
           body.innerHTML = `<div class="viewer-html"><p style="color:var(--amber);font-weight:600">⚠️ Stari Word format (.doc)</p><p style="margin-top:8px;color:var(--text2)">Tekst nije mogao biti izvučen iz ovog fajla. Koristite dugme <strong>Preuzmi</strong> da otvorite fajl u Word-u.</p></div>`;
           document.getElementById('viewer-page-info').textContent = 'Word .doc';
