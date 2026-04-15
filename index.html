@@ -972,7 +972,6 @@
           <button onclick="closeOCRResult()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px">✕</button>
         </div>
         <div class="ocr-text-box" id="ocr-text-out"></div>
-        <div class="ocr-ai-box" id="ocr-ai-out" style="display:none;background:var(--purple-l);border:1px solid #AFA9EC;border-radius:var(--rs);padding:9px 11px;font-size:12px;color:#3C3489;line-height:1.6;margin-top:8px"></div>
         <div style="display:flex;gap:7px;margin-top:9px">
           <button class="btn-save" style="flex:1;font-size:12px" onclick="useOCR()">Spremi kao dokument →</button>
           <button class="btn-cancel" style="font-size:12px" onclick="closeOCRResult()">Zatvori</button>
@@ -1227,15 +1226,6 @@ alter table dokumenti add column if not exists ai_summary  text;
 alter table dokumenti add column if not exists owner       text;
 alter table dokumenti add column if not exists shared_with text[];
 alter table dokumenti add column if not exists updated_at  timestamptz default now();</div>
-    </div>
-
-    <div class="settings-sec">
-      <div class="settings-sec-title">Anthropic AI (opciono)</div>
-      <div class="settings-row">
-        <div class="settings-lbl">API Key</div>
-        <input class="settings-input" type="password" id="api-key" placeholder="sk-ant-...">
-        <div class="settings-hint">Omogućava AI analizu pri učitavanju dokumenata. <a href="https://console.anthropic.com" target="_blank" style="color:var(--blue)">console.anthropic.com</a></div>
-      </div>
     </div>
 
     <div class="settings-btns">
@@ -1518,7 +1508,6 @@ let CONFIG = {
   supabaseUrl:   localStorage.getItem('sb_url')    || '',
   supabaseKey:   localStorage.getItem('sb_key')    || '',
   supabaseTable: localStorage.getItem('sb_table')  || 'dokumenti',
-  apiKey:        localStorage.getItem('anthro_key') || '',
 };
 
 // ─── PERSISTENCE ─────────────────────────────────────────────────────────────
@@ -1581,7 +1570,7 @@ function _lsFileDel(id) {
 // Files → IDB via 'file_<id>'. OCR/AI text → IDB via 'ocr_<id>' / 'ais_<id>'.
 function saveDocs() {
   try {
-    const slim = DOCS.map(({ file_data, ocr_text, ai_summary, ...rest }) => rest);
+    const slim = DOCS.map(({ file_data, ocr_text, ...rest }) => rest);
     localStorage.setItem('dokuvod_docs', JSON.stringify(slim));
   } catch(e) { console.warn('saveDocs localStorage error', e); }
   DOCS.forEach(d => {
@@ -1590,7 +1579,6 @@ function saveDocs() {
       _lsFileSave(d.id, d.file_data, d.file_type || '');
     }
     if(d.ocr_text)   idbSet('ocr_' + d.id, d.ocr_text).catch(()=>{});
-    if(d.ai_summary) idbSet('ais_' + d.id, d.ai_summary).catch(()=>{});
   });
 }
 function saveCats() {
@@ -1624,8 +1612,7 @@ async function hydrateFilesFromIDB() {
         if(ls) { d.file_data = ls.data; d.file_type = ls.type || d.file_type || ''; }
       }
       // Restore text fields stripped from localStorage (stored separately in IDB)
-      if(!d.ocr_text)   { const t = await idbGet('ocr_' + d.id).catch(()=>null); if(t) d.ocr_text   = t; }
-      if(!d.ai_summary) { const s = await idbGet('ais_' + d.id).catch(()=>null); if(s) d.ai_summary = s; }
+      if(!d.ocr_text)   { const t = await idbGet('ocr_' + d.id).catch(()=>null); if(t) d.ocr_text = t; }
     }));
     renderTable(getVisibleDocs());  // re-render to show 📎 badges
   } catch(e) { console.warn('hydrateFilesFromIDB error', e); }
@@ -1830,7 +1817,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load settings
   document.getElementById('sb-url').value    = CONFIG.supabaseUrl;
   document.getElementById('sb-key').value    = CONFIG.supabaseKey;
-  const akEl = document.getElementById('api-key'); if(akEl) akEl.value = CONFIG.apiKey;
   document.getElementById('sb-table').value = CONFIG.supabaseTable;
 
   buildColorPicker();
@@ -2031,7 +2017,6 @@ async function loadFromSB() {
           status:      d.status||'ok',
           notes:       d.notes||'',
           ocr_text:    d.ocr_text||'',
-          ai_summary:  d.ai_summary||'',
           owner:       d.owner||'',
           sharedWith:  Array.isArray(d.shared_with) ? d.shared_with : [],
           _sbid:       d.id,
@@ -2056,7 +2041,7 @@ async function loadFromSB() {
 
 async function saveToDB(doc) {
   if(!CONFIG.supabaseUrl||!CONFIG.supabaseKey) return null;
-  const p = { name:doc.name, cat:doc.cat, date:doc.date||null, expire:doc.expire||null, source:doc.source, status:doc.status, notes:doc.notes||'', ocr_text:doc.ocr_text||'', ai_summary:doc.ai_summary||'', owner:doc.owner||'', shared_with:doc.sharedWith||[], updated_at:new Date().toISOString() };
+  const p = { name:doc.name, cat:doc.cat, date:doc.date||null, expire:doc.expire||null, source:doc.source, status:doc.status, notes:doc.notes||'', ocr_text:doc.ocr_text||'', owner:doc.owner||'', shared_with:doc.sharedWith||[], updated_at:new Date().toISOString() };
   setSyncState('syncing','Spremam...');
   try {
     let r;
@@ -2091,8 +2076,6 @@ function saveSettings() {
   CONFIG.supabaseUrl   = document.getElementById('sb-url').value.trim().replace(/\/$/,'');
   CONFIG.supabaseKey   = document.getElementById('sb-key').value.trim();
   CONFIG.supabaseTable = document.getElementById('sb-table').value.trim()||'dokumenti';
-  const akEl2 = document.getElementById('api-key');
-  if(akEl2) { CONFIG.apiKey = akEl2.value.trim(); localStorage.setItem('anthro_key', CONFIG.apiKey); }
   localStorage.setItem('sb_url',CONFIG.supabaseUrl);
   localStorage.setItem('sb_key',CONFIG.supabaseKey);
   localStorage.setItem('sb_table',CONFIG.supabaseTable);
@@ -2272,7 +2255,6 @@ function addAllBatchDocs() {
       notes: '',
       ocr_text: r.text.substring(0, 2000),
       status: 'ok',
-      ai_summary: '',
       owner: currentUser ? currentUser.id : null,
       sharedWith: []
     };
@@ -3038,81 +3020,6 @@ function setOCRProg(pct,lbl) {
   document.getElementById('ocr-prog-lbl').textContent=lbl;
 }
 
-// ─── AI ANALYZE ──────────────────────────────────────────────────────────────
-async function aiAnalyze(text, fname) {
-  if(!CONFIG.apiKey) throw new Error('Nema API key');
-  const catList = CATS.map(c => c.id).join('|');
-  const cleanFname = fname ? fname.replace(/\.[^.]+$/, '') : '';
-  const prompt = `Analiziraj ovaj poslovni dokument i odgovori SAMO u JSON formatu, bez ikakvog teksta izvan JSON-a.
-
-Naziv fajla: "${cleanFname}"
-Tekst dokumenta:
-"""${text.substring(0, 2500)}"""
-
-Dostupne kategorije: ${catList}
-
-JSON format:
-{"category":"id_kategorije","suggested_name":"naziv dokumenta max 70 znakova na bosanskom, bez ekstenzije","summary":"2-3 rečenice na bosanskom šta je dokument","expire_hint":"YYYY-MM-DD ili null","doc_date":"YYYY-MM-DD ili null"}
-
-VAŽNO: suggested_name mora biti čitljiv naziv dokumenta (npr. "Ugovor o radu — Petar Perić"), NE naziv fajla kao kod.`;
-
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': CONFIG.apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  if(!r.ok) { const err = await r.json().catch(()=>({})); throw new Error('API ' + r.status + (err?.error?.message ? ': ' + err.error.message : '')); }
-  const d = await r.json();
-  if(d.error) throw new Error(d.error.message || 'API error');
-  const raw = (d.content||[]).filter(b => b.type==='text').map(b => b.text).join('');
-  const m = raw.match(/\{[\s\S]*\}/);
-  if(m) return JSON.parse(m[0]);
-  throw new Error('Parse error');
-}
-
-async function analyzeDoc(doc) {
-  const panel = document.getElementById('ai-panel');
-  if(!panel) return;
-  panel.classList.add('visible');
-  const aiTgl = document.getElementById('ai-toggle');
-  if(aiTgl) aiTgl.classList.add('active');
-  if(doc.ai_summary) { document.getElementById('ai-text').textContent = doc.ai_summary; return; }
-  document.getElementById('ai-text').innerHTML = '<div class="ai-loading"><div class="spinner"></div><span>AI analizira...</span></div>';
-  if(!CONFIG.apiKey) { document.getElementById('ai-text').textContent = '⚠️ Dodajte Anthropic API key u podešavanja.'; return; }
-  try {
-    const p = `Kratka analiza poslovnog dokumenta na bosanskom (2-3 rečenice, šta treba napraviti):
-Naziv: ${doc.name}
-Kategorija: ${getCat(doc.cat).name}
-Datum: ${doc.date}
-Ističe: ${doc.expire||'nema'}
-${doc.ocr_text ? 'Tekst: ' + doc.ocr_text.substring(0,500) : ''}`;
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CONFIG.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({ model:'claude-3-5-haiku-20241022', max_tokens:250, messages:[{role:'user',content:p}] })
-    });
-    const d = await r.json();
-    const s = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-    doc.ai_summary = s; saveDocs();
-    document.getElementById('ai-text').textContent = s;
-  } catch(e) {
-    document.getElementById('ai-text').textContent = 'AI analiza nije dostupna.';
-  }
-}
 
 async function finishOCR(text, fname, origKB, compKB) {
   document.getElementById('ocr-progress').classList.remove('visible');
@@ -3150,27 +3057,6 @@ async function finishOCR(text, fname, origKB, compKB) {
       doc_date: new Date().toISOString().split('T')[0]
     }
   };
-
-  // Try AI analysis if API key is set
-  if(CONFIG.apiKey) {
-    const aiBox = document.getElementById('ocr-ai-out');
-    if(aiBox) {
-      aiBox.style.display = 'block';
-      aiBox.innerHTML = '<div class="ai-loading"><div class="spinner"></div><span>AI analizira dokument...</span></div>';
-      try {
-        const a = await aiAnalyze(clean, fname);
-        // Override with AI suggestions (but keep the already-decoded filename as fallback)
-        if(a.suggested_name) pendingOCR.analysis.suggested_name = a.suggested_name;
-        if(a.category) pendingOCR.analysis.category = a.category;
-        if(a.expire_hint) pendingOCR.analysis.expire_hint = a.expire_hint;
-        if(a.doc_date) pendingOCR.analysis.doc_date = a.doc_date;
-        aiBox.innerHTML = '<strong style="display:block;margin-bottom:5px">🤖 AI analiza:</strong>' + esc(a.summary || '—');
-      } catch(e) {
-        console.warn('AI analiza greška:', e);
-        aiBox.innerHTML = `<span style="color:var(--amber)">⚠️ AI analiza nije dostupna${e?.message ? ': ' + e.message : ' — provjerite API key u podešavanjima.'}</span>`;
-      }
-    }
-  }
 
   if(origKB && compKB && origKB > compKB) toast(`Slika komprimirana: ${origKB}KB → ${compKB}KB`, 'info');
 }
@@ -3263,7 +3149,6 @@ async function saveDoc() {
     notes:document.getElementById('m-notes').value.trim(),
     ocr_text:document.getElementById('m-ocr').value,
     status,
-    ai_summary:'',
     owner: existingDoc?.owner || (currentUser ? currentUser.id : null),
     sharedWith: existingDoc?.sharedWith || [],
     file_data: fileData,
@@ -3667,8 +3552,6 @@ function sortFiltered() {
   });
 }
 
-function selectDoc(id) { const doc=DOCS.find(d=>d.id===id); if(doc) analyzeDoc(doc); }
-
 // ─── BADGES & ALERTS ──────────────────────────────────────────────────────────
 function updateBadges() {
   const now=new Date(), soon=new Date(now.getTime()+30*24*3600*1000);
@@ -3892,7 +3775,6 @@ function escFt(s) {
 function ftOpenDoc(id) {
   closeFulltext();
   // Scroll to and highlight doc in table
-  selectDoc(id);
   setTimeout(() => {
     const rows = document.querySelectorAll('#doc-tbody tr');
     rows.forEach(row => {
@@ -4662,11 +4544,6 @@ async function renderViewerContent(doc) {
       </div>
 
       ${ocrHtml ? `<div style="font-family:'DM Sans',sans-serif">${ocrHtml}</div>` : ''}
-
-      ${doc.ai_summary ? `<div style="margin-top:24px;padding:14px 16px;background:var(--purple-l);border:1px solid #AFA9EC;border-radius:var(--rs)">
-        <div style="font-size:10px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">🤖 AI Analiza</div>
-        <div style="font-size:13px;line-height:1.7;color:#3C3489">${esc(doc.ai_summary)}</div>
-      </div>` : ''}
 
       ${doc.notes ? `<div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs)">
         <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">Bilješka</div>
