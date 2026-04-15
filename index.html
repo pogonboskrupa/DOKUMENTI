@@ -3065,7 +3065,7 @@ VAŽNO: suggested_name mora biti čitljiv naziv dokumenta (npr. "Ugovor o radu �
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 600,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -3103,7 +3103,7 @@ ${doc.ocr_text ? 'Tekst: ' + doc.ocr_text.substring(0,500) : ''}`;
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:250, messages:[{role:'user',content:p}] })
+      body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:250, messages:[{role:'user',content:p}] })
     });
     const d = await r.json();
     const s = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -3166,7 +3166,8 @@ async function finishOCR(text, fname, origKB, compKB) {
         if(a.doc_date) pendingOCR.analysis.doc_date = a.doc_date;
         aiBox.innerHTML = '<strong style="display:block;margin-bottom:5px">🤖 AI analiza:</strong>' + esc(a.summary || '—');
       } catch(e) {
-        aiBox.innerHTML = '<span style="color:var(--amber)">⚠️ AI analiza nije dostupna — dodajte Anthropic API key u podešavanja.</span>';
+        console.warn('AI analiza greška:', e);
+        aiBox.innerHTML = `<span style="color:var(--amber)">⚠️ AI analiza nije dostupna${e?.message ? ': ' + e.message : ' — provjerite API key u podešavanjima.'}</span>`;
       }
     }
   }
