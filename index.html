@@ -274,6 +274,21 @@
   .action-btn:hover{color:var(--text);background:var(--surface2)}
   .action-btn.danger:hover{color:var(--red);background:var(--red-l)}
 
+  /* BULK SELECT */
+  .row-check{width:15px;height:15px;cursor:pointer;accent-color:var(--blue);flex-shrink:0}
+  #bulk-bar{display:none;position:sticky;top:0;z-index:15;background:var(--blue);color:#fff;padding:9px 14px 9px 16px;border-radius:8px;margin:0 0 8px;align-items:center;gap:10px;font-size:13px;font-weight:500;box-shadow:0 2px 10px rgba(47,129,238,.35)}
+  .bulk-cancel-btn{background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:5px;padding:4px 11px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500}
+  .bulk-cancel-btn:hover{background:rgba(255,255,255,.35)}
+  .bulk-del-btn{background:#fff;border:none;color:var(--red);border-radius:5px;padding:5px 14px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:700}
+  .bulk-del-btn:hover{background:#ffe5e5}
+
+  /* CONFIRM DIALOG */
+  #confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;align-items:center;justify-content:center}
+  .confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 32px;max-width:430px;width:calc(100vw - 40px);box-shadow:0 8px 40px rgba(0,0,0,.3)}
+  .confirm-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:10px}
+  .confirm-msg{font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px}
+  .confirm-btns{display:flex;justify-content:flex-end;gap:10px}
+
   /* PAGINATION */
   .pagination{display:flex;align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--text3)}
   .page-btns{display:flex;gap:4px}
@@ -981,10 +996,17 @@
         <button class="filter-btn active" onclick="sortBy('kat')" id="sort-kat">Kategorija</button>
       </div>
 
+      <div id="bulk-bar">
+        <span id="bulk-count"></span>
+        <span style="flex:1"></span>
+        <button class="bulk-cancel-btn" onclick="clearSelection()">Poništi odabir</button>
+        <button class="bulk-del-btn" onclick="bulkDelete()">🗑 Obriši odabrane</button>
+      </div>
       <div class="table-wrap">
       <table class="doc-table">
         <thead>
           <tr>
+            <th style="width:36px;padding:0 4px 0 12px"><input type="checkbox" id="select-all-cb" class="row-check" onchange="toggleSelectAll(event)" title="Odaberi sve vidljive"></th>
             <th>Dokument</th>
             <th class="col-cat">Kategorija</th>
             <th class="col-status">Status</th>
@@ -1486,6 +1508,7 @@ let CATS = loadCats();
 let DOCS = loadDocs();
 let filtered = [...DOCS];
 let activeTag = 'sve';
+let selectedDocIds = new Set();
 let editingId = null;
 let pendingOCR = null;
 let sortState = { col:'kat', asc:true };
@@ -3295,25 +3318,39 @@ function editDoc(id) {
 }
 
 async function delDoc(id) {
-  const doc=DOCS.find(d=>d.id===id);
+  const doc = DOCS.find(d => d.id === id);
   if(!doc) return;
-  if(currentUser && doc.owner && doc.owner !== currentUser.id){ toast('Nemate pravo brisati tuđi dokument','error'); return; }
-  // Soft delete with undo
-  const snapshot = JSON.parse(JSON.stringify(doc));
-  DOCS = DOCS.filter(d=>d.id!==id);
-  saveDocs(); renderCatList(); renderTable(getVisibleDocs()); updateBadges(); buildExpiryAlert(); applyFilters();
-  let undone = false;
-  toastUndo(`"${doc.name}" obrisan`, () => {
-    undone = true;
-    DOCS.unshift(snapshot);
+  const isShared = !!(currentUser && doc.owner && doc.owner !== currentUser.id);
+
+  const doDelete = () => {
+    const snapshot = JSON.parse(JSON.stringify(doc));
+    DOCS = DOCS.filter(d => d.id !== id);
     saveDocs(); renderCatList(); renderTable(getVisibleDocs()); updateBadges(); buildExpiryAlert(); applyFilters();
-    toast('Obrisano poništeno','success');
-  }, async () => {
-    if(undone) return;
-    if(doc._sbid) await deleteFromDB(doc._sbid);
-    idbDel('file_' + id).catch(()=>{});
-    _lsFileDel(id);
-  });
+    let undone = false;
+    toastUndo(`"${doc.name}" obrisan`, () => {
+      undone = true;
+      DOCS.unshift(snapshot);
+      saveDocs(); renderCatList(); renderTable(getVisibleDocs()); updateBadges(); buildExpiryAlert(); applyFilters();
+      toast('Obrisano poništeno', 'success');
+    }, async () => {
+      if(undone) return;
+      if(doc._sbid) await deleteFromDB(doc._sbid);
+      idbDel('file_' + id).catch(()=>{}); idbDel('ocr_' + id).catch(()=>{}); idbDel('ais_' + id).catch(()=>{});
+      _lsFileDel(id);
+    });
+  };
+
+  if(isShared) {
+    const ownerUser = USERS.find(u => u.id === doc.owner);
+    const ownerName = ownerUser ? ownerUser.username : 'drugog korisnika';
+    showConfirm(
+      'Brisanje dijeljenog dokumenta',
+      `Dokument <strong>${esc(doc.name)}</strong> je dijeljeni dokument (vlasnik: <strong>${esc(ownerName)}</strong>).<br><br>Da li ste sigurni da želite obrisati ovaj dokument?`,
+      doDelete
+    );
+  } else {
+    doDelete();
+  }
 }
 
 function toastUndo(msg, onUndo, onCommit) {
@@ -3324,6 +3361,76 @@ function toastUndo(msg, onUndo, onCommit) {
   document.getElementById('toasts').appendChild(t);
   t._timer = setTimeout(() => { t.style.cssText='opacity:0;transition:opacity .3s'; setTimeout(()=>{ t.remove(); onCommit?.(); },300); }, 5000);
 }
+
+// ─── MULTI-SELECT & CONFIRM ──────────────────────────────────────────────────
+function toggleSelect(id, e) {
+  e.stopPropagation();
+  if(selectedDocIds.has(id)) selectedDocIds.delete(id); else selectedDocIds.add(id);
+  updateBulkBar();
+}
+function toggleSelectAll(e) {
+  e.stopPropagation();
+  const visible = getVisibleDocs().map(d => d.id);
+  const allSel = visible.length > 0 && visible.every(id => selectedDocIds.has(id));
+  if(allSel) visible.forEach(id => selectedDocIds.delete(id));
+  else       visible.forEach(id => selectedDocIds.add(id));
+  document.querySelectorAll('.row-check[data-id]').forEach(cb => {
+    cb.checked = selectedDocIds.has(Number(cb.dataset.id));
+  });
+  updateBulkBar();
+}
+function clearSelection() {
+  selectedDocIds.clear();
+  document.querySelectorAll('.row-check[data-id]').forEach(cb => cb.checked = false);
+  const sa = document.getElementById('select-all-cb');
+  if(sa) { sa.checked = false; sa.indeterminate = false; }
+  updateBulkBar();
+}
+function updateBulkBar() {
+  const n = selectedDocIds.size;
+  document.getElementById('bulk-count').textContent = n === 1 ? '1 dokument odabran' : `${n} dokumenata odabrano`;
+  document.getElementById('bulk-bar').style.display = n > 0 ? 'flex' : 'none';
+  const sa = document.getElementById('select-all-cb');
+  if(sa) {
+    const visible = getVisibleDocs().map(d => d.id);
+    sa.checked = visible.length > 0 && visible.every(id => selectedDocIds.has(id));
+    sa.indeterminate = !sa.checked && visible.some(id => selectedDocIds.has(id));
+  }
+}
+async function bulkDelete() {
+  const ids = [...selectedDocIds];
+  if(!ids.length) return;
+  const sharedCnt = ids.filter(id => {
+    const d = DOCS.find(d => d.id === id);
+    return d && currentUser && d.owner && d.owner !== currentUser.id;
+  }).length;
+  const n = ids.length;
+  let msg = `Trajno brisanje ${n} ${n === 1 ? 'dokumenta' : 'dokumenata'}. Ova akcija se ne može poništiti.`;
+  if(sharedCnt > 0) msg += `<br><br><strong>Napomena:</strong> ${sharedCnt} od odabranih ${sharedCnt === 1 ? 'je dijeljeni dokument koji vam je podijeljio drugi korisnik' : 'su dijeljeni dokumenti koje su vam podijelili drugi korisnici'}.`;
+  showConfirm('Brisanje odabranih dokumenata', msg, async () => {
+    for(const id of ids) {
+      const doc = DOCS.find(d => d.id === id); if(!doc) continue;
+      DOCS = DOCS.filter(d => d.id !== id);
+      if(doc._sbid) await deleteFromDB(doc._sbid);
+      idbDel('file_' + id).catch(()=>{}); idbDel('ocr_' + id).catch(()=>{}); idbDel('ais_' + id).catch(()=>{});
+      _lsFileDel(id);
+    }
+    selectedDocIds.clear();
+    saveDocs(); renderCatList(); renderTable(getVisibleDocs()); updateBadges(); buildExpiryAlert(); applyFilters();
+    updateBulkBar();
+    toast(`${n} ${n === 1 ? 'dokument obrisan' : 'dokumenata obrisano'}`, 'success');
+  });
+}
+
+let _confirmCb = null;
+function showConfirm(title, msg, onConfirm) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').innerHTML = msg;
+  _confirmCb = onConfirm;
+  document.getElementById('confirm-overlay').style.display = 'flex';
+}
+function closeConfirm() { document.getElementById('confirm-overlay').style.display = 'none'; _confirmCb = null; }
+function confirmOK() { const cb = _confirmCb; closeConfirm(); if(cb) cb(); }
 
 function duplicateDoc(id) {
   const src = DOCS.find(d=>d.id===id);
@@ -3352,7 +3459,7 @@ function hlText(text, q) {
 function renderTable(docs, highlightQ) {
   const q = (highlightQ||'').toLowerCase();
   const tb=document.getElementById('doc-tbody');
-  if(!docs.length){ tb.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🗂️</div>Nema dokumenata u ovoj kategoriji.</div></td></tr>`; return; }
+  if(!docs.length){ tb.innerHTML=`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🗂️</div>Nema dokumenata u ovoj kategoriji.</div></td></tr>`; updateBulkBar(); return; }
   tb.innerHTML=docs.map(d=>{
     const cat=getCat(d.cat);
     const bg=cat.color+'18';
@@ -3395,6 +3502,9 @@ function renderTable(docs, highlightQ) {
       : '';
 
     return `<tr onclick="openViewer(${d.id})" style="cursor:pointer">
+      <td onclick="event.stopPropagation()" style="width:36px;padding:0 4px 0 12px;vertical-align:middle">
+        <input type="checkbox" class="row-check" data-id="${d.id}" ${selectedDocIds.has(d.id)?'checked':''} onchange="toggleSelect(${d.id},event)">
+      </td>
       <td>
         <div class="doc-cell">
           <div class="doc-icon" style="background:${bg}">${cat.emoji}</div>
@@ -3427,6 +3537,7 @@ function renderTable(docs, highlightQ) {
       </div></td>
     </tr>`;
   }).join('');
+  updateBulkBar();
 }
 function fmtD(s){ if(!s)return'—'; const d=s.includes('T')?new Date(s):new Date(s+'T00:00:00'); return d.toLocaleDateString('bs-BA',{day:'2-digit',month:'short',year:'numeric'}); }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -4862,6 +4973,18 @@ if('serviceWorker' in navigator) {
     <div class="viewer-toolbar">
       <span id="viewer-page-info" class="viewer-page-info"></span>
       <span style="margin-left:auto" id="viewer-size-info"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div id="confirm-overlay" onclick="if(event.target===this)closeConfirm()">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title"></div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button class="viewer-btn close-btn" onclick="closeConfirm()">Odustani</button>
+      <button id="confirm-ok-btn" class="viewer-btn" style="background:var(--red);color:#fff;border-color:var(--red);opacity:1" onclick="confirmOK()">Obriši</button>
     </div>
   </div>
 </div>
