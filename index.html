@@ -2712,6 +2712,26 @@ function _parseDocOle2(ab) {
   } catch(e) { return null; }
 }
 
+// Wraps content HTML in an A4 white page with gray surround.
+// Used by both .doc (plain-text heuristic) and .docx (mammoth HTML).
+function _renderA4Page(innerHtml) {
+  return `<div style="overflow-y:auto;height:100%;padding:24px 0;background:#525659;box-sizing:border-box;display:flex;flex-direction:column;align-items:center">
+    <style>
+      #vap p{margin:.45em 0;line-height:1.6}
+      #vap h1,#vap h2,#vap h3,#vap h4{margin:1.1em 0 .45em;font-weight:700;line-height:1.25}
+      #vap h1{font-size:1.5em}#vap h2{font-size:1.25em}#vap h3{font-size:1.1em}
+      #vap table{border-collapse:collapse;width:100%;margin:.8em 0}
+      #vap td,#vap th{border:1px solid #bbb;padding:4px 8px;font-size:.9em;vertical-align:top}
+      #vap th{background:#f0f0f0;font-weight:700}
+      #vap ul,#vap ol{padding-left:2.2em;margin:.4em 0}
+      #vap li{margin:.15em 0}
+    </style>
+    <div id="vap" style="background:white;width:min(21cm,calc(100vw - 80px));min-height:28cm;padding:2.54cm 3cm;box-shadow:0 3px 18px rgba(0,0,0,.55);font-family:'Times New Roman',Georgia,serif;font-size:12pt;color:#000;box-sizing:border-box">
+      ${innerHtml}
+    </div>
+  </div>`;
+}
+
 // Convert extracted .doc text to Word-like A4 page HTML.
 // Uses heuristics: ALL-CAPS short lines → centered+bold; body → justified.
 function _renderDocPage(rawText) {
@@ -2753,11 +2773,7 @@ function _renderDocPage(rawText) {
     paras.push(`<p style="text-align:${align};margin:0 0 .2em;line-height:1.5;${indentStyle}">${content}</p>`);
   }
 
-  return `<div style="overflow-y:auto;height:100%;padding:24px 0;background:#525659;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:24px">
-    <div style="background:white;width:min(21cm,calc(100vw - 80px));min-height:28cm;padding:2.54cm 3cm;box-shadow:0 3px 18px rgba(0,0,0,.55);font-family:'Times New Roman',Georgia,serif;font-size:12pt;color:#000;box-sizing:border-box;flex-shrink:0">
-      ${paras.join('')}
-    </div>
-  </div>`;
+  return _renderA4Page(paras.join(''));
 }
 
 // Safely extract raw text from a DOCX ArrayBuffer using Mammoth,
@@ -4309,6 +4325,7 @@ async function openViewer(docId) {
   document.getElementById('viewer-size-info').textContent = '';
   document.getElementById('viewer-page-info').textContent = '';
   document.getElementById('viewer-download-btn').style.display = 'none';
+  document.getElementById('viewer-print-btn').style.display = 'none';
 
   // Open overlay immediately with loading indicator
   const body = document.getElementById('viewer-body');
@@ -4334,6 +4351,32 @@ async function openViewer(docId) {
   document.getElementById('viewer-download-btn').style.display = doc.file_data ? 'flex' : 'none';
 
   renderViewerContent(doc);
+}
+
+function printViewer() {
+  const page = document.getElementById('vap');
+  if(!page) return;
+  const docName = (document.getElementById('viewer-name')?.textContent || 'Dokument').replace(/[<>"&]/g, '');
+  const w = window.open('', '_blank');
+  if(!w) { toast('Dozvolite popup prozore da biste koristili Spremi PDF.', 'warn'); return; }
+  w.document.write(`<!DOCTYPE html>
+<html lang="bs"><head><meta charset="utf-8"><title>${docName}</title>
+<style>
+@page{size:A4;margin:2.54cm 3cm}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Times New Roman',Georgia,serif;font-size:12pt;color:#000;line-height:1.5}
+p{margin:.45em 0}
+h1,h2,h3,h4{margin:1.1em 0 .45em;font-weight:700;line-height:1.25}
+h1{font-size:1.5em}h2{font-size:1.25em}h3{font-size:1.1em}
+table{border-collapse:collapse;width:100%;margin:.8em 0}
+td,th{border:1px solid #bbb;padding:4px 8px;font-size:.9em;vertical-align:top}
+th{background:#f0f0f0;font-weight:700}
+ul,ol{padding-left:2.2em;margin:.4em 0}
+li{margin:.15em 0}
+</style>
+</head><body>${page.innerHTML}</body></html>`);
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 250);
 }
 
 function closeViewer() {
@@ -4540,6 +4583,7 @@ async function renderViewerContent(doc) {
         if(rawText && rawText.length > 10) {
           body.innerHTML = _renderDocPage(rawText);
           document.getElementById('viewer-page-info').textContent = 'Word .doc';
+          document.getElementById('viewer-print-btn').style.display = 'flex';
         } else {
           body.innerHTML = `<div class="viewer-html"><p style="color:var(--amber);font-weight:600">⚠️ Stari Word format (.doc)</p><p style="margin-top:8px;color:var(--text2)">Tekst nije mogao biti izvučen iz ovog fajla. Koristite dugme <strong>Preuzmi</strong> da otvorite fajl u Word-u.</p></div>`;
           document.getElementById('viewer-page-info').textContent = 'Word .doc';
@@ -4557,8 +4601,9 @@ async function renderViewerContent(doc) {
           html = txt ? txt.split('\n').map(l => `<p>${esc(l)}</p>`).join('') : '';
         }
         if(!html.trim()) throw new Error('Prazan dokument ili nije moguće pročitati sadržaj.');
-        body.innerHTML = `<div class="viewer-html">${html}</div>`;
+        body.innerHTML = _renderA4Page(html);
         document.getElementById('viewer-page-info').textContent = 'Word dokument';
+        document.getElementById('viewer-print-btn').style.display = 'flex';
       }
     } catch(e) {
       body.innerHTML = `<div class="viewer-html"><p style="color:var(--red)">⚠️ Greška pri prikazu Word dokumenta: ${esc(e.message)}</p><p style="margin-top:12px">Koristite dugme <strong>Preuzmi</strong> da otvorite fajl.</p></div>`;
@@ -4778,6 +4823,10 @@ if('serviceWorker' in navigator) {
         <button class="viewer-btn" id="viewer-task-btn" onclick="openTaskModal(viewerDocId)" title="Dodijeli zadatak">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 5.5h6M3.5 7.5h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="11" cy="11" r="2.5" stroke="currentColor" stroke-width="1.1"/><path d="M10 11l.7.7 1.3-1.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Zadatak
+        </button>
+        <button class="viewer-btn" id="viewer-print-btn" onclick="printViewer()" style="display:none" title="Spremi kao PDF / Štampaj">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="7.5" width="14" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="4.5" y="11.5" width="7" height="1" rx=".5" fill="currentColor"/><rect x="4.5" y="13.2" width="4.5" height="1" rx=".5" fill="currentColor"/><circle cx="12" cy="10.5" r=".9" fill="currentColor"/></svg>
+          Spremi PDF
         </button>
         <button class="viewer-btn primary" id="viewer-download-btn" onclick="viewerDownload()" style="display:none">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 9V2M4.5 6.5L7 9l2.5-2.5" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="white" stroke-width="1.2" stroke-linecap="round"/></svg>
