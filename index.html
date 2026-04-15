@@ -1554,21 +1554,20 @@ function _lsFileDel(id) {
   try { localStorage.removeItem('dkf_' + id); } catch(e) {}
 }
 
-// saveDocs: strip file_data before localStorage, save file_data separately in IDB
+/// saveDocs: strip file_data + large text fields from localStorage (would blow 5 MB quota).
+// Files → IDB via 'file_<id>'. OCR/AI text → IDB via 'ocr_<id>' / 'ais_<id>'.
 function saveDocs() {
   try {
-    const slim = DOCS.map(d => {
-      const { file_data, ...rest } = d;  // strip binary from localStorage copy
-      return rest;
-    });
+    const slim = DOCS.map(({ file_data, ocr_text, ai_summary, ...rest }) => rest);
     localStorage.setItem('dokuvod_docs', JSON.stringify(slim));
   } catch(e) { console.warn('saveDocs localStorage error', e); }
-  // Save each doc's file_data to IDB + LS fallback asynchronously
   DOCS.forEach(d => {
     if(d.file_data) {
       idbSet('file_' + d.id, { data: d.file_data, type: d.file_type || '' }).catch(()=>{});
       _lsFileSave(d.id, d.file_data, d.file_type || '');
     }
+    if(d.ocr_text)   idbSet('ocr_' + d.id, d.ocr_text).catch(()=>{});
+    if(d.ai_summary) idbSet('ais_' + d.id, d.ai_summary).catch(()=>{});
   });
 }
 function saveCats() {
@@ -1601,6 +1600,9 @@ async function hydrateFilesFromIDB() {
         const ls = _lsFileLoad(d.id);
         if(ls) { d.file_data = ls.data; d.file_type = ls.type || d.file_type || ''; }
       }
+      // Restore text fields stripped from localStorage (stored separately in IDB)
+      if(!d.ocr_text)   { const t = await idbGet('ocr_' + d.id).catch(()=>null); if(t) d.ocr_text   = t; }
+      if(!d.ai_summary) { const s = await idbGet('ais_' + d.id).catch(()=>null); if(s) d.ai_summary = s; }
     }));
     renderTable(getVisibleDocs());  // re-render to show 📎 badges
   } catch(e) { console.warn('hydrateFilesFromIDB error', e); }
@@ -1654,7 +1656,7 @@ async function _extractTextFromBytes(bytes, mime) {
       // Scanned PDF — OCR up to 5 pages
       if(text.length < n * 40) {
         const ocrParts = [];
-        const worker   = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {});
+        const worker   = await _createOCRWorker();
         for(let p = 1; p <= Math.min(n, 5); p++) {
           const pg = await pdf.getPage(p);
           const vp = pg.getViewport({ scale: 2 });
@@ -1682,7 +1684,7 @@ async function _extractTextFromBytes(bytes, mime) {
     // Unknown type or image — try Tesseract
     const blobType = mime || 'image/png';
     const blob   = new Blob([bytes], { type: blobType });
-    const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {});
+    const worker = await _createOCRWorker();
     const res    = await worker.recognize(blob);
     await worker.terminate();
     text = res.data.text || '';
@@ -2201,7 +2203,7 @@ async function processBatchQueue() {
         text = await extractPDF(item.file);
       } else {
         const compressed = await compressImage(item.file);
-        const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, { logger: ()=>{} });
+        const worker = await _createOCRWorker();
         const res = await worker.recognize(compressed);
         await worker.terminate();
         text = res.data.text;
@@ -2922,12 +2924,19 @@ async function processFile(file) {
   }
 }
 
+// Centralized OCR worker factory.
+// langPath is explicit so Tesseract.js v5 finds data on GitHub Pages.
+// 'hrv+eng' reliably covers all Bosnian Latin characters (čšžđć etc.).
+async function _createOCRWorker(loggerFn) {
+  const opts = { langPath: 'https://tessdata.projectnaptha.com/4.0.0/' };
+  if(loggerFn) opts.logger = loggerFn;
+  return Tesseract.createWorker('hrv+eng', 1, opts);
+}
+
 async function runTesseract(file, origKB, compKB) {
-  const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {
-    logger: m => {
-      if(m.status==='recognizing text') setOCRProg(15+Math.round(m.progress*80), `Prepoznajem tekst... ${Math.round(m.progress*100)}%`);
-      else if(m.status==='loading language traineddata') setOCRProg(20,'Učitavam jezični model...');
-    }
+  const worker = await _createOCRWorker(m => {
+    if(m.status==='recognizing text') setOCRProg(15+Math.round(m.progress*80), `Prepoznajem tekst... ${Math.round(m.progress*100)}%`);
+    else if(m.status==='loading language traineddata') setOCRProg(20,'Učitavam jezični model...');
   });
   const result = await worker.recognize(file);
   await worker.terminate();
@@ -2963,11 +2972,9 @@ async function extractPDF(file) {
 }
 
 async function _ocrPDFPages(pdf, numPages) {
-  const worker = await Tesseract.createWorker('bos+hrv+srp+eng', 1, {
-    logger: m => {
-      if(m.status === 'recognizing text')
-        setOCRProg(35 + Math.round(m.progress * 55), `OCR... ${Math.round(m.progress*100)}%`);
-    }
+  const worker = await _createOCRWorker(m => {
+    if(m.status === 'recognizing text')
+      setOCRProg(35 + Math.round(m.progress * 55), `OCR... ${Math.round(m.progress*100)}%`);
   });
   const texts = [];
   for(let p = 1; p <= numPages; p++) {
