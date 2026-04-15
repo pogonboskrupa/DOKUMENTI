@@ -2661,7 +2661,12 @@ function _parseDocOle2(ab) {
     const fcLcbBase = 0x22 + csw * 2 + 4 + cslw * 4 + 4;
     const fcClx  = wdDV.getUint32(fcLcbBase + 23 * 8, true);
     const lcbClx = wdDV.getUint32(fcLcbBase + 23 * 8 + 4, true);
-    if(!lcbClx || fcClx + lcbClx > tbl.length) return null;
+    // No piece table (simple/non-complex doc) — scan only the WordDocument stream,
+    // NOT the whole OLE2 file (which would include directory names, font lists, etc.)
+    if(!lcbClx || fcClx + lcbClx > tbl.length) {
+      const wdText = _extractDocBinaryText(wd.buffer);
+      return (wdText && wdText.length > 5) ? wdText : null;
+    }
 
     // Walk CLX: skip Rme entries (type=1), process Pcdt (type=2)
     let text = '', pos = fcClx;
@@ -2702,7 +2707,8 @@ function _parseDocOle2(ab) {
       }
       break;
     }
-    return text.length > 5 ? text : null;
+    // If CLX yielded nothing, still try WD stream scan (covers malformed CLX)
+    return text.length > 5 ? text : (_extractDocBinaryText(wd.buffer) || null);
   } catch(e) { return null; }
 }
 
@@ -4527,8 +4533,10 @@ async function renderViewerContent(doc) {
     try {
       const ab = _b64ToUint8(doc.file_data.split(',')[1]).buffer;
       if(!_isDocx(ab)) {
-        // Old .doc: try OLE2+CLX proper parsing first, fall back to UTF-16LE scan
-        const rawText = _parseDocOle2(ab) || _extractDocBinaryText(ab);
+        // Old .doc: OLE2+CLX parser (falls back to WD-stream scan internally).
+        // Full-file binary scan only used when the file isn't OLE2 at all.
+        const isOle2 = (new DataView(ab)).getUint32(0, true) === 0xE011CFD0;
+        const rawText = _parseDocOle2(ab) || (!isOle2 ? _extractDocBinaryText(ab) : null);
         if(rawText && rawText.length > 10) {
           body.innerHTML = _renderDocPage(rawText);
           document.getElementById('viewer-page-info').textContent = 'Word .doc';
